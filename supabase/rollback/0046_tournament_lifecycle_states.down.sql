@@ -1,0 +1,3 @@
+-- Rollback 0046: Tournament Lifecycle Engine — New States
+-- Same limitation as every prior enum-value addition: PostgreSQL cannot
+-- remove an enum value. See 0015's rollback for the safe (non-blind) path.

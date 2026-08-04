@@ -1,0 +1,27 @@
+-- Rollback 0002: Enumerated Types
+-- Drop in reverse dependency order relative to migration 0002.
+drop type if exists actor_type;
+drop type if exists audit_action_category;
+drop type if exists dispute_resolution;
+drop type if exists dispute_status;
+drop type if exists report_status;
+drop type if exists friend_request_status;
+drop type if exists notification_status;
+drop type if exists tournament_round_status;
+drop type if exists tournament_format;
+drop type if exists tournament_status;
+drop type if exists evidence_type;
+drop type if exists chat_message_type;
+drop type if exists challenge_participant_role;
+drop type if exists challenge_visibility;
+drop type if exists challenge_status;
+drop type if exists ledger_direction;
+drop type if exists ledger_account_type;
+drop type if exists escrow_status;
+drop type if exists escrow_release_reason;
+drop type if exists transaction_status;
+drop type if exists transaction_type;
+drop type if exists wallet_status;
+drop type if exists kyc_status;
+drop type if exists user_status;
+drop type if exists user_role;

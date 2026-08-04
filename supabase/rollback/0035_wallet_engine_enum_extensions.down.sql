@@ -1,0 +1,5 @@
+-- Rollback 0035: Wallet Engine Enum Extensions
+-- Same limitation noted in 0015's rollback: PostgreSQL cannot remove a
+-- value from an enum type. If this must be undone, the safe path is
+-- recreating the enum types under temporary names and migrating every
+-- dependent column/function/policy over deliberately — not a blind script.

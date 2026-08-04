@@ -1,0 +1,23 @@
+{
+  "name": "championsstake",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ChampionsStake monorepo — apps/web (Next.js) and supabase/functions (Deno Edge Functions) are deliberately separate TypeScript compilation contexts; see docs/ARCHITECTURE_MONOREPO.md.",
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "start": "npm run start --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/web",
+    "format": "npm run format --workspace=apps/web",
+    "format:check": "npm run format:check --workspace=apps/web",
+    "test": "npm run test --workspace=apps/web"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

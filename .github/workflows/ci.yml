@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  web:
+    name: apps/web (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.11.0"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier format check
+        run: npm run format:check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholder values sufficient for a build-time check only.
+          # Real secrets are injected by Vercel at deploy time, never committed here.
+          NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder"
+          NEXT_PUBLIC_APP_URL: "https://placeholder.championsstake.app"
+          SUPABASE_SERVICE_ROLE_KEY: "placeholder"
+          RESEND_API_KEY: "placeholder"
+
+  edge-functions:
+    name: supabase/functions (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Deno format check
+        run: deno fmt --check supabase/functions/
+
+      - name: Deno lint
+        run: deno lint supabase/functions/
+
+      - name: Deno type check
+        # Each function is its own Deno entry point; type-checking every
+        # index.ts transitively covers every _shared/_wallet/_challenge/etc.
+        # module it imports. This job never existed before the runtimes were
+        # physically separated — previously the Next.js tsconfig accidentally
+        # (and incorrectly) tried to cover this code instead of Deno's own
+        # toolchain verifying it.
+        run: |
+          for f in supabase/functions/*/index.ts; do
+            echo "Checking $f"
+            deno check "$f"
+          done

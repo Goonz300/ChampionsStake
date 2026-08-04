@@ -1,0 +1,23 @@
+-- Rollback 0025: Security Triggers
+drop trigger if exists trg_audit_wallet_adjustment on wallet_transactions;
+drop function if exists fn_audit_wallet_adjustment();
+drop trigger if exists trg_audit_moderator_action on moderator_actions;
+drop function if exists fn_audit_moderator_action();
+drop trigger if exists trg_audit_feature_flag_change on feature_flags;
+drop function if exists fn_audit_feature_flag_change();
+drop trigger if exists trg_audit_dispute_resolution on disputes;
+drop function if exists fn_audit_dispute_resolution();
+drop trigger if exists trg_audit_profile_status_change on profiles;
+drop function if exists fn_audit_profile_status_change();
+drop trigger if exists trg_feature_flags_dual_approval_guard on feature_flags;
+drop function if exists fn_feature_flags_dual_approval_guard();
+drop trigger if exists trg_friends_status_transition_guard on friends;
+drop function if exists fn_friends_status_transition_guard();
+drop trigger if exists trg_disputes_column_guard on disputes;
+drop function if exists fn_disputes_column_guard();
+drop trigger if exists trg_notifications_read_status_only_guard on notifications;
+drop function if exists fn_notifications_read_status_only_guard();
+drop trigger if exists trg_messages_seen_by_only_guard on challenge_messages;
+drop function if exists fn_messages_seen_by_only_guard();
+drop trigger if exists trg_profiles_self_update_guard on profiles;
+drop function if exists fn_profiles_self_update_guard();

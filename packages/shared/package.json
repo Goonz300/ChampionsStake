@@ -1,0 +1,6 @@
+{
+  "name": "@championsstake/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reserved for code genuinely shared between apps/web (Next.js/Node) and supabase/functions (Deno). See README.md in this directory for why it's currently empty."
+}

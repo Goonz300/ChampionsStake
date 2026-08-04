@@ -1,0 +1,21 @@
+-- Rollback 0020: RLS Policies — Games, Platforms, Regions, Challenges
+drop policy if exists challenge_attachments_insert_participant on challenge_attachments;
+drop policy if exists challenge_attachments_select_participant on challenge_attachments;
+drop policy if exists challenge_messages_update_seen_by on challenge_messages;
+drop policy if exists challenge_messages_insert_participant on challenge_messages;
+drop policy if exists challenge_messages_select_participant on challenge_messages;
+drop policy if exists challenge_events_select_participant on challenge_events;
+drop policy if exists challenge_participants_select_visible on challenge_participants;
+drop policy if exists challenges_update_staff on challenges;
+drop policy if exists challenges_update_draft_owner on challenges;
+drop policy if exists challenges_insert_own on challenges;
+drop policy if exists challenges_select_staff on challenges;
+drop policy if exists challenges_select_participant on challenges;
+drop policy if exists challenges_select_friends on challenges;
+drop policy if exists challenges_select_public on challenges;
+drop policy if exists games_write_admin on games;
+drop policy if exists games_select_all on games;
+drop policy if exists regions_write_admin on regions;
+drop policy if exists regions_select_all on regions;
+drop policy if exists platforms_write_admin on platforms;
+drop policy if exists platforms_select_all on platforms;

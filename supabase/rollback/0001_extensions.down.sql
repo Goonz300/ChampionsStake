@@ -1,0 +1,5 @@
+-- Rollback 0001: Extensions
+-- Note: extensions are left in place intentionally on rollback, since other
+-- schemas in the same Supabase project may depend on them. Dropping them is
+-- almost never the correct rollback action; this file exists for completeness
+-- and documents that decision rather than issuing a DROP EXTENSION.
