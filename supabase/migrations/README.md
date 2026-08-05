@@ -80,3 +80,15 @@ Authentication implementation, per the approved Phase 3 Architecture Rev. 2. Pur
 | 0071 | `jwt_revocation_timestamp_column.sql` | `profiles.sessions_invalidated_at` (nullable, additive) — closes the stateless-access-token revocation window for `/api/auth/logout-all`; see the migration's own header comment and `_shared/auth/session.ts`'s `assertSessionNotInvalidated`. |
 
 Not safe to re-run (bare `alter table add column`, same convention as 0001–0013/0065–0070's non-seed files).
+
+## Phase 3B addition (0072)
+
+Session & device management, per the approved Phase 3 Architecture Rev. 2, §8/§12. Purely additive.
+
+| # | File | Creates |
+|---|---|---|
+| 0072 | `session_device_context_columns.sql` | `devices.user_agent` (nullable) — the existing `device_fingerprint` is a one-way hash and can't produce a human-readable label on its own; `user_sessions.device_id` (nullable FK to `devices.id`, `on delete set null`) — links a session to the device that created it, previously written independently with no relationship between them. |
+
+**Note:** the architecture document's §8 also lists `user_sessions.ip_address`/`user_agent` as missing — verified against the actual schema before writing this migration, both already existed since 0003 and are already written by `recordSession`. Not re-added here; the architecture document has a stale claim on this point.
+
+Not safe to re-run (bare `alter table add column`, same convention as the rest of this file).
