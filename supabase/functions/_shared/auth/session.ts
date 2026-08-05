@@ -11,6 +11,7 @@ export interface UserProfile {
   status: "unverified" | "active" | "suspended" | "closed";
   kyc_status: "unverified" | "pending" | "verified" | "rejected";
   trust_score: number;
+  sessions_invalidated_at: string | null;
 }
 
 /**
@@ -28,7 +29,9 @@ export async function loadUserProfile(
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, role, status, kyc_status, trust_score")
+    .select(
+      "id, display_name, role, status, kyc_status, trust_score, sessions_invalidated_at",
+    )
     .eq("id", user.id)
     .single();
 
@@ -45,6 +48,32 @@ export function assertAccountActive(profile: UserProfile): void {
   if (profile.status !== "active") {
     throw new AuthenticationError(
       `Account status is "${profile.status}", not active.`,
+    );
+  }
+}
+
+/**
+ * Rejects a JWT issued before the user's most recent logout-all
+ * (profiles.sessions_invalidated_at, migration 0071) — closes the window
+ * where an already-issued, still-unexpired access token would otherwise
+ * remain valid after the user explicitly revoked every session (Phase 3
+ * Architecture Rev. 2, §4). `sessions_invalidated_at` piggybacks the
+ * profile row loadUserProfile already fetches on every authenticated
+ * request, so this check adds no new query.
+ */
+export function assertSessionNotInvalidated(
+  user: AuthenticatedUser,
+  profile: UserProfile,
+): void {
+  if (!profile.sessions_invalidated_at) return;
+
+  const invalidatedAtSeconds = Math.floor(
+    new Date(profile.sessions_invalidated_at).getTime() / 1000,
+  );
+
+  if (user.iat < invalidatedAtSeconds) {
+    throw new AuthenticationError(
+      "Session was revoked by a subsequent logout-all; please sign in again.",
     );
   }
 }

@@ -18,6 +18,7 @@ function makeProfile(overrides: Partial<UserProfile> = {}): UserProfile {
     status: "active",
     kyc_status: "unverified",
     trust_score: 1000,
+    sessions_invalidated_at: null,
     ...overrides,
   };
 }
