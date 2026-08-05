@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { revokeAllSessionsForUser } from "@/lib/auth/session-registry";
+import { createClient } from "@/lib/supabase/server";
+import {
+  invalidateAllSessionsForUser,
+  revokeAllSessionsForUser,
+} from "@/lib/auth/session-registry";
 
 /**
  * POST /api/auth/logout-all — revokes every session for the current user
- * across all devices. Uses the Supabase Auth admin API (service_role),
- * since there is no RLS-respecting client method for a global sign-out —
- * this is one of the narrow, justified uses of the service-role client
- * documented in lib/supabase/server.ts.
+ * across all devices.
+ *
+ * Uses the regular, RLS-respecting client's own auth.signOut({scope:
+ * "global"}) — not the Admin API. GoTrueAdminApi.signOut(jwt, scope)'s
+ * first argument must be an actual JWT used as the request's bearer token,
+ * not a user id; the previous implementation passed user.id there, which
+ * fails GoTrue's token parsing on every real invocation (Phase 3
+ * Architecture Rev. 2, §3). The regular client's signOut() takes no
+ * id/JWT argument at all — it acts on whichever session the client
+ * instance already holds via cookies, which is exactly this user's own
+ * session, so no service-role client is needed for self-service logout-all.
  */
 export async function POST() {
   const supabase = await createClient();
@@ -23,8 +33,7 @@ export async function POST() {
     );
   }
 
-  const adminClient = createServiceRoleClient();
-  const { error } = await adminClient.auth.admin.signOut(user.id, "global");
+  const { error } = await supabase.auth.signOut({ scope: "global" });
 
   if (error) {
     return NextResponse.json(
@@ -34,6 +43,19 @@ export async function POST() {
   }
 
   await revokeAllSessionsForUser(user.id);
+
+  // Unlike the shadow-registry write above (UI-only), this one's result is
+  // checked: it's what actually closes the still-live-access-token window
+  // (Phase 3 Architecture Rev. 2, §4) -- reporting success without it having
+  // landed would silently defeat the reason this endpoint exists.
+  const { error: invalidateError } = await invalidateAllSessionsForUser(user.id);
+
+  if (invalidateError) {
+    return NextResponse.json(
+      { error: { code: "INTERNAL_ERROR", message: "Failed to revoke sessions." } },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ data: { logged_out_all_devices: true } });
 }

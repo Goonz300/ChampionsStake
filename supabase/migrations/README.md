@@ -70,3 +70,13 @@ Gap-fill migrations from the Phase 2 database-layer audit. Purely additive — n
 Not safe to re-run except 0068 (seed data, `on conflict do nothing` throughout), matching the same convention as 0001–0014.
 
 **0067's `NOT VALID` foreign key**: `fk_profiles_country_code` is enforced on every new/updated row immediately but does not retroactively validate pre-existing `profiles.country_code` values. Run `alter table profiles validate constraint fk_profiles_country_code;` once existing production data is confirmed to consist entirely of seeded `countries.code` values (see 0068 for how to load the full ISO 3166-1 list beyond the curated seed).
+
+## Phase 3A addition (0071)
+
+Authentication implementation, per the approved Phase 3 Architecture Rev. 2. Purely additive.
+
+| # | File | Creates |
+|---|---|---|
+| 0071 | `jwt_revocation_timestamp_column.sql` | `profiles.sessions_invalidated_at` (nullable, additive) — closes the stateless-access-token revocation window for `/api/auth/logout-all`; see the migration's own header comment and `_shared/auth/session.ts`'s `assertSessionNotInvalidated`. |
+
+Not safe to re-run (bare `alter table add column`, same convention as 0001–0013/0065–0070's non-seed files).

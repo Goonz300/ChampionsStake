@@ -14,7 +14,11 @@ import {
   verifyOptionalRequestJwt,
   verifyRequestJwt,
 } from "../auth/jwt.ts";
-import { loadUserProfile, type UserProfile } from "../auth/session.ts";
+import {
+  assertSessionNotInvalidated,
+  loadUserProfile,
+  type UserProfile,
+} from "../auth/session.ts";
 import { errorResponse } from "../response/index.ts";
 import { clearLogContext, logger, setLogContext } from "../logger/index.ts";
 import { withTiming } from "../metrics/index.ts";
@@ -72,6 +76,7 @@ export function withEdgeFunction(
         }
 
         const profile = user ? await loadUserProfile(user) : null;
+        if (user && profile) assertSessionNotInvalidated(user, profile);
         if (user) setLogContext({ userId: user.id });
 
         const ctx: EdgeContext = {

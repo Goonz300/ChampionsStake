@@ -37,6 +37,7 @@ export interface Database {
           suspended_at: string | null;
           suspended_reason_code: string | null;
           closed_at: string | null;
+          sessions_invalidated_at: string | null;
           created_at: string;
           updated_at: string;
         };
