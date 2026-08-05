@@ -84,6 +84,7 @@ export interface Database {
           user_id: string;
           device_fingerprint: string;
           platform: string | null;
+          user_agent: string | null;
           first_seen_at: string;
           last_seen_at: string;
           created_at: string;
@@ -102,6 +103,7 @@ export interface Database {
           refresh_token_hash: string;
           ip_address: string | null;
           user_agent: string | null;
+          device_id: string | null;
           created_at: string;
           expires_at: string;
           revoked_at: string | null;

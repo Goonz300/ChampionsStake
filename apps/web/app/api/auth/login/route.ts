@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   const acceptLanguage = request.headers.get("accept-language") ?? "";
   const fingerprint = deriveDeviceFingerprint(userAgent, acceptLanguage, ipAddress);
 
-  await recordDevice(data.user.id, fingerprint, null);
+  const { deviceId } = await recordDevice(data.user.id, fingerprint, null, userAgent);
   await recordSession(
     data.user.id,
     data.session.refresh_token,
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
         ? data.session.expires_at * 1000
         : Date.now() + 7 * 24 * 60 * 60 * 1000,
     ),
+    deviceId,
   );
 
   return NextResponse.json({
