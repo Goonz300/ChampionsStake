@@ -43,7 +43,19 @@ export async function POST() {
   }
 
   await revokeAllSessionsForUser(user.id);
-  await invalidateAllSessionsForUser(user.id);
+
+  // Unlike the shadow-registry write above (UI-only), this one's result is
+  // checked: it's what actually closes the still-live-access-token window
+  // (Phase 3 Architecture Rev. 2, §4) -- reporting success without it having
+  // landed would silently defeat the reason this endpoint exists.
+  const { error: invalidateError } = await invalidateAllSessionsForUser(user.id);
+
+  if (invalidateError) {
+    return NextResponse.json(
+      { error: { code: "INTERNAL_ERROR", message: "Failed to revoke sessions." } },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ data: { logged_out_all_devices: true } });
 }

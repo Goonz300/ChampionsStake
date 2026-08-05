@@ -86,14 +86,14 @@ describe("invalidateAllSessionsForUser", () => {
     vi.clearAllMocks();
   });
 
-  it("sets profiles.sessions_invalidated_at scoped to exactly one user's row", async () => {
+  it("sets profiles.sessions_invalidated_at scoped to exactly one user's row, and returns no error on success", async () => {
     const eqMock = vi.fn().mockResolvedValue({ error: null });
     const updateMock = vi.fn().mockReturnValue({ eq: eqMock });
     const mockFrom = vi.fn().mockReturnValue({ update: updateMock });
     vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
 
     const before = Date.now();
-    await invalidateAllSessionsForUser("user-1");
+    const result = await invalidateAllSessionsForUser("user-1");
     const after = Date.now();
 
     expect(mockFrom).toHaveBeenCalledWith("profiles");
@@ -104,6 +104,24 @@ describe("invalidateAllSessionsForUser", () => {
     // Explicit user filtering, required because this uses the service-role
     // client (bypasses RLS entirely) -- see the function's own doc comment.
     expect(eqMock).toHaveBeenCalledWith("id", "user-1");
+    expect(result.error).toBeNull();
+  });
+
+  it("propagates the database error to the caller instead of swallowing it", async () => {
+    // Regression test: a prior version of this function (and its only
+    // caller, /api/auth/logout-all) did not check this write's result at
+    // all, so a failure here would silently report success to the client
+    // even though sessions_invalidated_at -- the specific column that
+    // closes the live-access-token window, §4 -- was never actually set.
+    const dbError = new Error("connection reset");
+    const eqMock = vi.fn().mockResolvedValue({ error: dbError });
+    const updateMock = vi.fn().mockReturnValue({ eq: eqMock });
+    const mockFrom = vi.fn().mockReturnValue({ update: updateMock });
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
+
+    const result = await invalidateAllSessionsForUser("user-1");
+
+    expect(result.error).toBe(dbError);
   });
 
   it("scopes different users to different rows (no cross-user leakage)", async () => {

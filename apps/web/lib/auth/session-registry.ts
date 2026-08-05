@@ -61,12 +61,22 @@ export async function revokeAllSessionsForUser(userId: string): Promise<void> {
  * 2, §4). Filtered explicitly by `id = userId`: service-role bypasses RLS
  * entirely, so this filter is the only thing bounding the write to the
  * caller's own row.
+ *
+ * Unlike revokeAllSessionsForUser (a UI-only shadow-registry write above),
+ * this one's result is returned and must be checked by the caller: it is
+ * the specific write that closes the live-access-token window, so a
+ * caller reporting success without it actually having landed would silently
+ * defeat the reason this function exists.
  */
-export async function invalidateAllSessionsForUser(userId: string): Promise<void> {
+export async function invalidateAllSessionsForUser(
+  userId: string,
+): Promise<{ error: Error | null }> {
   const supabase = createServiceRoleClient();
 
-  await supabase
+  const { error } = await supabase
     .from("profiles")
     .update({ sessions_invalidated_at: new Date().toISOString() })
     .eq("id", userId);
+
+  return { error };
 }
