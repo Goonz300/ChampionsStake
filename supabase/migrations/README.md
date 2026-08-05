@@ -53,3 +53,20 @@ done
 
 - 0001–0013 are **not** safe to re-run (they use bare `create type`/`create table`, which will error on a second run) — this is intentional, since Supabase's migration runner tracks which migrations have already been applied and never re-runs one. Do not add `if not exists` to these; a silent no-op on a schema migration hides drift.
 - 0014 (seed data) **is** safe to re-run — every insert uses `on conflict ... do nothing`.
+
+## Phase 2 additions (0065–0070)
+
+Gap-fill migrations from the Phase 2 database-layer audit. Purely additive — no existing table, enum, function, trigger, index, or RLS policy from 0001–0064 was modified, renamed, or removed.
+
+| # | File | Creates |
+|---|---|---|
+| 0065 | `notification_infrastructure.sql` | `push_tokens`, `notification_templates`, `email_queue` (+ `push_provider`, `email_provider`, `email_queue_status` enums) |
+| 0066 | `maintenance_windows.sql` | `maintenance_windows` (+ `maintenance_schedule_type`, `maintenance_window_status` enums) |
+| 0067 | `identity_lookup_tables.sql` | `countries`, `languages`, `timezones`; adds `profiles.language_code`/`profiles.timezone_name` (new, nullable) and a `NOT VALID` FK on the existing `profiles.country_code` |
+| 0068 | `identity_lookup_seed_data.sql` | Curated country/language seed rows + full timezone list from `pg_timezone_names` |
+| 0069 | `blocked_users_table.sql` | `blocked_users` (standalone, independent of `friends`) |
+| 0070 | `temporary_suspensions.sql` | `user_suspensions` (+ `user_suspension_status` enum), `fn_expire_temporary_suspensions()`, a `pg_cron` job for automatic expiry |
+
+Not safe to re-run except 0068 (seed data, `on conflict do nothing` throughout), matching the same convention as 0001–0014.
+
+**0067's `NOT VALID` foreign key**: `fk_profiles_country_code` is enforced on every new/updated row immediately but does not retroactively validate pre-existing `profiles.country_code` values. Run `alter table profiles validate constraint fk_profiles_country_code;` once existing production data is confirmed to consist entirely of seeded `countries.code` values (see 0068 for how to load the full ISO 3166-1 list beyond the curated seed).
