@@ -8,7 +8,10 @@ const BASE_HEADERS = {
   ...securityHeaders,
 };
 
-export function successResponse<T>(data: T, init?: { status?: number; headers?: HeadersInit }): Response {
+export function successResponse<T>(
+  data: T,
+  init?: { status?: number; headers?: HeadersInit },
+): Response {
   return new Response(JSON.stringify({ data }), {
     status: init?.status ?? 200,
     headers: { ...BASE_HEADERS, ...(init?.headers ?? {}) },
@@ -20,7 +23,11 @@ export interface PaginationMeta {
   total_count?: number;
 }
 
-export function paginatedResponse<T>(data: T[], meta: PaginationMeta, init?: { status?: number }): Response {
+export function paginatedResponse<T>(
+  data: T[],
+  meta: PaginationMeta,
+  init?: { status?: number },
+): Response {
   return new Response(JSON.stringify({ data, meta }), {
     status: init?.status ?? 200,
     headers: BASE_HEADERS,
@@ -36,10 +43,15 @@ export function errorResponse(err: unknown, requestId?: string): Response {
 
   const headers: Record<string, string> = { ...BASE_HEADERS };
   if ("retryAfterSeconds" in edgeError) {
-    headers["Retry-After"] = String((edgeError as { retryAfterSeconds: number }).retryAfterSeconds);
+    headers["Retry-After"] = String(
+      (edgeError as { retryAfterSeconds: number }).retryAfterSeconds,
+    );
   }
 
-  return new Response(JSON.stringify(body), { status: edgeError.httpStatus, headers });
+  return new Response(JSON.stringify(body), {
+    status: edgeError.httpStatus,
+    headers,
+  });
 }
 
 /**
@@ -48,7 +60,10 @@ export function errorResponse(err: unknown, requestId?: string): Response {
  * current function uses this, but the shape is established so a future one
  * doesn't need to invent its own streaming convention.
  */
-export function streamingResponse(stream: ReadableStream, contentType = "application/octet-stream"): Response {
+export function streamingResponse(
+  stream: ReadableStream,
+  contentType = "application/octet-stream",
+): Response {
   return new Response(stream, {
     status: 200,
     headers: { ...BASE_HEADERS, "Content-Type": contentType },

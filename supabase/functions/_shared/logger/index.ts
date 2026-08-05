@@ -28,7 +28,11 @@ export function clearLogContext(): void {
   globalContext = {};
 }
 
-function emit(level: LogLevel, message: string, extra?: Record<string, unknown>) {
+function emit(
+  level: LogLevel,
+  message: string,
+  extra?: Record<string, unknown>,
+) {
   const line = {
     level,
     message,
@@ -51,8 +55,12 @@ function emit(level: LogLevel, message: string, extra?: Record<string, unknown>)
 }
 
 export const logger = {
-  debug: (message: string, extra?: Record<string, unknown>) => emit("debug", message, extra),
-  info: (message: string, extra?: Record<string, unknown>) => emit("info", message, extra),
-  warn: (message: string, extra?: Record<string, unknown>) => emit("warn", message, extra),
-  error: (message: string, extra?: Record<string, unknown>) => emit("error", message, extra),
+  debug: (message: string, extra?: Record<string, unknown>) =>
+    emit("debug", message, extra),
+  info: (message: string, extra?: Record<string, unknown>) =>
+    emit("info", message, extra),
+  warn: (message: string, extra?: Record<string, unknown>) =>
+    emit("warn", message, extra),
+  error: (message: string, extra?: Record<string, unknown>) =>
+    emit("error", message, extra),
 };

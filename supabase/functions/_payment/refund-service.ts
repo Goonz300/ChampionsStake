@@ -18,9 +18,18 @@
 import { recordAudit } from "../_shared/audit/index.ts";
 import { getActiveProvider } from "./registry.ts";
 
-export async function initiateProviderRefund(providerRef: string, amountCents: number, reason: string, adminId: string) {
+export async function initiateProviderRefund(
+  providerRef: string,
+  amountCents: number,
+  reason: string,
+  adminId: string,
+) {
   const provider = await getActiveProvider();
-  const result = await provider.initiateRefund({ providerRef, amountCents, reason });
+  const result = await provider.initiateRefund({
+    providerRef,
+    amountCents,
+    reason,
+  });
 
   await recordAudit({
     actorId: adminId,
@@ -29,7 +38,12 @@ export async function initiateProviderRefund(providerRef: string, amountCents: n
     category: "financial",
     targetTable: "payment_intents",
     targetId: providerRef,
-    metadata: { amountCents, reason, refundReference: result.refundReference, status: result.status },
+    metadata: {
+      amountCents,
+      reason,
+      refundReference: result.refundReference,
+      status: result.status,
+    },
   });
 
   return result;

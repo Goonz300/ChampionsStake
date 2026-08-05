@@ -9,7 +9,8 @@ import { getServiceRoleClient } from "../_shared/database/client.ts";
 export async function userGrowth(days: number) {
   const supabase = getServiceRoleClient();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase.from("profiles").select("created_at").gte("created_at", since);
+  const { data, error } = await supabase.from("profiles").select("created_at")
+    .gte("created_at", since);
   if (error) throw new Error(error.message);
 
   const byDay: Record<string, number> = {};
@@ -23,17 +24,27 @@ export async function userGrowth(days: number) {
 export async function challengeVolume(days: number) {
   const supabase = getServiceRoleClient();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase.from("challenges").select("created_at, status").gte("created_at", since);
+  const { data, error } = await supabase.from("challenges").select(
+    "created_at, status",
+  ).gte("created_at", since);
   if (error) throw new Error(error.message);
-  return { total: (data ?? []).length, byStatus: countBy(data ?? [], "status") };
+  return {
+    total: (data ?? []).length,
+    byStatus: countBy(data ?? [], "status"),
+  };
 }
 
 export async function tournamentVolume(days: number) {
   const supabase = getServiceRoleClient();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase.from("tournaments").select("created_at, status, format").gte("created_at", since);
+  const { data, error } = await supabase.from("tournaments").select(
+    "created_at, status, format",
+  ).gte("created_at", since);
   if (error) throw new Error(error.message);
-  return { total: (data ?? []).length, byFormat: countBy(data ?? [], "format") };
+  return {
+    total: (data ?? []).length,
+    byFormat: countBy(data ?? [], "format"),
+  };
 }
 
 export async function revenue(days: number) {
@@ -46,12 +57,16 @@ export async function revenue(days: number) {
     .eq("direction", "credit")
     .gte("created_at", since);
   if (error) throw new Error(error.message);
-  return { totalFeeCents: (data ?? []).reduce((s, r) => s + r.amount_cents, 0) };
+  return {
+    totalFeeCents: (data ?? []).reduce((s, r) => s + r.amount_cents, 0),
+  };
 }
 
 export async function escrowStatistics() {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("escrow_accounts").select("status, total_locked_cents");
+  const { data, error } = await supabase.from("escrow_accounts").select(
+    "status, total_locked_cents",
+  );
   if (error) throw new Error(error.message);
   const byStatus: Record<string, { count: number; totalCents: number }> = {};
   for (const row of data ?? []) {
@@ -65,9 +80,15 @@ export async function escrowStatistics() {
 export async function disputeStatistics(days: number) {
   const supabase = getServiceRoleClient();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase.from("disputes").select("status, resolution, created_at").gte("created_at", since);
+  const { data, error } = await supabase.from("disputes").select(
+    "status, resolution, created_at",
+  ).gte("created_at", since);
   if (error) throw new Error(error.message);
-  return { total: (data ?? []).length, byStatus: countBy(data ?? [], "status"), byResolution: countBy(data ?? [], "resolution") };
+  return {
+    total: (data ?? []).length,
+    byStatus: countBy(data ?? [], "status"),
+    byResolution: countBy(data ?? [], "resolution"),
+  };
 }
 
 /** Approximated retention proxy -- see file header note. */
@@ -85,10 +106,17 @@ export async function retentionProxy() {
   }
   const totalPlayers = Object.keys(counts).length;
   const returningPlayers = Object.values(counts).filter((c) => c > 1).length;
-  return { totalPlayers, returningPlayers, retentionRate: totalPlayers > 0 ? returningPlayers / totalPlayers : 0 };
+  return {
+    totalPlayers,
+    returningPlayers,
+    retentionRate: totalPlayers > 0 ? returningPlayers / totalPlayers : 0,
+  };
 }
 
-function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof T): Record<string, number> {
+function countBy<T extends Record<string, unknown>>(
+  rows: T[],
+  key: keyof T,
+): Record<string, number> {
   const result: Record<string, number> = {};
   for (const row of rows) {
     const value = String(row[key] ?? "unknown");

@@ -20,24 +20,42 @@ function toChallenge(row: Record<string, unknown>): Challenge {
   };
 }
 
-export async function getChallengeOrThrow(challengeId: string): Promise<Challenge> {
+export async function getChallengeOrThrow(
+  challengeId: string,
+): Promise<Challenge> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("challenges").select("*").eq("id", challengeId).maybeSingle();
+  const { data, error } = await supabase.from("challenges").select("*").eq(
+    "id",
+    challengeId,
+  ).maybeSingle();
 
-  if (error) throw new Error(`Failed to fetch challenge ${challengeId}: ${error.message}`);
-  if (!data) throw new NotFoundError(`Challenge ${challengeId} does not exist.`);
+  if (error) {
+    throw new Error(
+      `Failed to fetch challenge ${challengeId}: ${error.message}`,
+    );
+  }
+  if (!data) {
+    throw new NotFoundError(`Challenge ${challengeId} does not exist.`);
+  }
   return toChallenge(data);
 }
 
 export async function getWalletIdForUser(userId: string): Promise<string> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("wallets").select("id").eq("user_id", userId).maybeSingle();
+  const { data, error } = await supabase.from("wallets").select("id").eq(
+    "user_id",
+    userId,
+  ).maybeSingle();
 
-  if (error || !data) throw new NotFoundError(`No wallet exists for user ${userId}.`);
+  if (error || !data) {
+    throw new NotFoundError(`No wallet exists for user ${userId}.`);
+  }
   return data.id as string;
 }
 
-export async function getOrCreateEscrowAccount(challengeId: string): Promise<EscrowAccount> {
+export async function getOrCreateEscrowAccount(
+  challengeId: string,
+): Promise<EscrowAccount> {
   const supabase = getServiceRoleClient();
 
   const { data: existing } = await supabase
@@ -58,11 +76,19 @@ export async function getOrCreateEscrowAccount(challengeId: string): Promise<Esc
 
   const { data: created, error } = await supabase
     .from("escrow_accounts")
-    .insert({ challenge_id: challengeId, status: "locked", total_locked_cents: 0 })
+    .insert({
+      challenge_id: challengeId,
+      status: "locked",
+      total_locked_cents: 0,
+    })
     .select("*")
     .single();
 
-  if (error || !created) throw new Error(`Failed to create escrow account for challenge ${challengeId}: ${error?.message}`);
+  if (error || !created) {
+    throw new Error(
+      `Failed to create escrow account for challenge ${challengeId}: ${error?.message}`,
+    );
+  }
 
   return {
     id: created.id,
@@ -108,12 +134,19 @@ export async function updateChallengeStatus(
     update[columnMap[key] ?? key] = value;
   }
 
-  const { error } = await supabase.from("challenges").update(update).eq("id", challengeId);
+  const { error } = await supabase.from("challenges").update(update).eq(
+    "id",
+    challengeId,
+  );
   // Note: this UPDATE is subject to DB-001's fn_challenge_state_guard
   // trigger — an invalid status transition raises a Postgres error here,
   // which surfaces as a generic Error and should be normalized by the
   // calling Edge Function into a ChallengeError/ConflictError.
-  if (error) throw new Error(`Failed to update challenge ${challengeId}: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Failed to update challenge ${challengeId}: ${error.message}`,
+    );
+  }
 }
 
 export async function recordChallengeEvent(
@@ -141,13 +174,21 @@ export async function upsertParticipant(
   const { error } = await supabase
     .from("challenge_participants")
     .upsert(
-      { challenge_id: challengeId, user_id: userId, role, stake_locked_cents: stakeLockedCents },
+      {
+        challenge_id: challengeId,
+        user_id: userId,
+        role,
+        stake_locked_cents: stakeLockedCents,
+      },
       { onConflict: "challenge_id,user_id" },
     );
   if (error) throw new Error(`Failed to record participant: ${error.message}`);
 }
 
-export async function isParticipant(challengeId: string, userId: string): Promise<boolean> {
+export async function isParticipant(
+  challengeId: string,
+  userId: string,
+): Promise<boolean> {
   const supabase = getServiceRoleClient();
   const { data } = await supabase
     .from("challenge_participants")

@@ -16,7 +16,9 @@ export interface AuditSearchFilter {
 
 export async function searchAuditLogs(filter: AuditSearchFilter) {
   const supabase = getServiceRoleClient();
-  let query = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(filter.limit);
+  let query = supabase.from("audit_logs").select("*").order("created_at", {
+    ascending: false,
+  }).limit(filter.limit);
 
   if (filter.actorId) query = query.eq("actor_id", filter.actorId);
   if (filter.targetTable) query = query.eq("target_table", filter.targetTable);

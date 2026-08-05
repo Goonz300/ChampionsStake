@@ -1,23 +1,44 @@
 // supabase/functions/moderator-assign/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
-import { requireModerator, requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
+import {
+  requireAdministrator,
+  requireModerator,
+} from "../_shared/permissions/index.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
-import { autoAssign, assignDispute, claimDispute, setPriority, escalateDispute } from "../_moderator/queue.ts";
+import {
+  assignDispute,
+  autoAssign,
+  claimDispute,
+  escalateDispute,
+  setPriority,
+} from "../_moderator/queue.ts";
 
 const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("auto_assign"), disputeId: z.string().uuid() }),
-  z.object({ action: z.literal("assign"), disputeId: z.string().uuid(), moderatorId: z.string().uuid() }),
+  z.object({
+    action: z.literal("assign"),
+    disputeId: z.string().uuid(),
+    moderatorId: z.string().uuid(),
+  }),
   z.object({ action: z.literal("claim"), disputeId: z.string().uuid() }),
   z.object({
     action: z.literal("set_priority"),
     disputeId: z.string().uuid(),
     priority: z.enum(["low", "normal", "high", "urgent"]),
   }),
-  z.object({ action: z.literal("escalate"), disputeId: z.string().uuid(), adminId: z.string().uuid(), reason: z.string().min(1) }),
+  z.object({
+    action: z.literal("escalate"),
+    disputeId: z.string().uuid(),
+    adminId: z.string().uuid(),
+    reason: z.string().min(1),
+  }),
 ]);
 
 async function handler(ctx: EdgeContext): Promise<Response> {
@@ -38,11 +59,21 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       await setPriority(body.disputeId, body.priority, ctx.user!.id);
       return successResponse({ updated: true });
     case "escalate":
-      await escalateDispute(body.disputeId, body.adminId, ctx.user!.id, body.reason);
+      await escalateDispute(
+        body.disputeId,
+        body.adminId,
+        ctx.user!.id,
+        body.reason,
+      );
       return successResponse({ escalated: true });
     default:
       throw new ValidationError("Unsupported action.");
   }
 }
 
-Deno.serve(withEdgeFunction({ functionName: "moderator-assign", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "moderator-assign", auth: "required" },
+    handler,
+  ),
+);

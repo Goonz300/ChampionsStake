@@ -21,7 +21,9 @@ export interface UserProfile {
  * policy edge case — the profile lookup itself is not the authorization
  * decision, it's an input to one.
  */
-export async function loadUserProfile(user: AuthenticatedUser): Promise<UserProfile> {
+export async function loadUserProfile(
+  user: AuthenticatedUser,
+): Promise<UserProfile> {
   const supabase = getServiceRoleClient();
 
   const { data, error } = await supabase
@@ -31,7 +33,9 @@ export async function loadUserProfile(user: AuthenticatedUser): Promise<UserProf
     .single();
 
   if (error || !data) {
-    throw new AuthenticationError("No profile found for the authenticated user.");
+    throw new AuthenticationError(
+      "No profile found for the authenticated user.",
+    );
   }
 
   return data as UserProfile;
@@ -39,6 +43,8 @@ export async function loadUserProfile(user: AuthenticatedUser): Promise<UserProf
 
 export function assertAccountActive(profile: UserProfile): void {
   if (profile.status !== "active") {
-    throw new AuthenticationError(`Account status is "${profile.status}", not active.`);
+    throw new AuthenticationError(
+      `Account status is "${profile.status}", not active.`,
+    );
   }
 }

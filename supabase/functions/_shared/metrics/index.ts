@@ -10,15 +10,35 @@
 
 import { logger } from "../logger/index.ts";
 
-export function recordLatency(functionName: string, durationMs: number, outcome: "success" | "error"): void {
-  logger.info("metric.latency", { metric: "latency_ms", functionName, durationMs, outcome });
+export function recordLatency(
+  functionName: string,
+  durationMs: number,
+  outcome: "success" | "error",
+): void {
+  logger.info("metric.latency", {
+    metric: "latency_ms",
+    functionName,
+    durationMs,
+    outcome,
+  });
 }
 
-export function recordErrorMetric(functionName: string, errorCode: string): void {
-  logger.info("metric.error", { metric: "error_count", functionName, errorCode });
+export function recordErrorMetric(
+  functionName: string,
+  errorCode: string,
+): void {
+  logger.info("metric.error", {
+    metric: "error_count",
+    functionName,
+    errorCode,
+  });
 }
 
-export function recordCounter(name: string, value = 1, tags: Record<string, unknown> = {}): void {
+export function recordCounter(
+  name: string,
+  value = 1,
+  tags: Record<string, unknown> = {},
+): void {
   logger.info("metric.counter", { metric: name, value, ...tags });
 }
 
@@ -27,7 +47,10 @@ export function recordCounter(name: string, value = 1, tags: Record<string, unkn
  * Used internally by middleware/compose.ts — most functions won't call this
  * directly.
  */
-export async function withTiming<T>(functionName: string, fn: () => Promise<T>): Promise<T> {
+export async function withTiming<T>(
+  functionName: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   const start = performance.now();
   try {
     const result = await fn();

@@ -1,9 +1,12 @@
 // supabase/functions/tournament-start-round/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { startRound } from "../_tournament/workflow.ts";
 
@@ -16,4 +19,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   return successResponse({ round_started: true });
 }
 
-Deno.serve(withEdgeFunction({ functionName: "tournament-start-round", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "tournament-start-round", auth: "required" },
+    handler,
+  ),
+);

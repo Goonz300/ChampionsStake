@@ -1,13 +1,18 @@
 // supabase/functions/ai-recommendations/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { recommendOpponentChallenges } from "../_ai/recommendations.ts";
 
-const querySchema = z.object({ limit: z.coerce.number().int().positive().max(50).default(20) });
+const querySchema = z.object({
+  limit: z.coerce.number().int().positive().max(50).default(20),
+});
 
 async function handler(ctx: EdgeContext): Promise<Response> {
   requirePlayer(ctx.profile!);
@@ -22,7 +27,11 @@ Deno.serve(
     {
       functionName: "ai-recommendations",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `ai-recommendations:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 20 }),
+      rateLimit: (ctx) => ({
+        key: `ai-recommendations:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
     },
     handler,
   ),

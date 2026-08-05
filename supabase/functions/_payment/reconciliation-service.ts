@@ -9,10 +9,14 @@ import { getActiveProvider } from "./registry.ts";
 import { verifyAndCompleteDeposit } from "./deposit-service.ts";
 import { finalizeWithdrawal } from "./withdrawal-service.ts";
 
-export async function reconcilePendingIntents(olderThanMinutes = 15, limit = 100) {
+export async function reconcilePendingIntents(
+  olderThanMinutes = 15,
+  limit = 100,
+) {
   const supabase = getServiceRoleClient();
   const provider = await getActiveProvider();
-  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000)
+    .toISOString();
 
   const { data: pending } = await supabase
     .from("payment_intents")
@@ -27,13 +31,16 @@ export async function reconcilePendingIntents(olderThanMinutes = 15, limit = 100
   for (const intent of pending ?? []) {
     try {
       if (intent.kind === "deposit") {
-        const verification = await provider.verifyTransaction(intent.provider_ref);
+        const verification = await provider.verifyTransaction(
+          intent.provider_ref,
+        );
         if (verification.status === "success") {
           await verifyAndCompleteDeposit(intent.provider_ref);
           driftFound.push(intent.id);
           reconciled += 1;
         } else if (verification.status === "failed") {
-          await supabase.from("payment_intents").update({ status: "failed" }).eq("id", intent.id);
+          await supabase.from("payment_intents").update({ status: "failed" })
+            .eq("id", intent.id);
           reconciled += 1;
         }
       } else {

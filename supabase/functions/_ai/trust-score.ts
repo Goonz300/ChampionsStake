@@ -16,11 +16,14 @@
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { logger } from "../_shared/logger/index.ts";
-import { computeEloUpdate, computeDisputeLossAdjustment } from "./elo.ts";
+import { computeDisputeLossAdjustment, computeEloUpdate } from "./elo.ts";
 
 const supabase = getServiceRoleClient();
 
-async function alreadyProcessed(challengeId: string, reason: string): Promise<boolean> {
+async function alreadyProcessed(
+  challengeId: string,
+  reason: string,
+): Promise<boolean> {
   const { data } = await supabase
     .from("trust_score_history")
     .select("id")
@@ -40,7 +43,10 @@ async function applyRatingChange(
   kFactor: number,
   opponentRatingAtTime: number,
 ): Promise<void> {
-  await supabase.from("profiles").update({ trust_score: newRating }).eq("id", userId);
+  await supabase.from("profiles").update({ trust_score: newRating }).eq(
+    "id",
+    userId,
+  );
   await supabase.from("trust_score_history").insert({
     user_id: userId,
     challenge_id: challengeId,
@@ -54,7 +60,10 @@ async function applyRatingChange(
 }
 
 async function getRating(userId: string): Promise<number> {
-  const { data } = await supabase.from("profiles").select("trust_score").eq("id", userId).single();
+  const { data } = await supabase.from("profiles").select("trust_score").eq(
+    "id",
+    userId,
+  ).single();
   return (data?.trust_score as number) ?? 1000;
 }
 
@@ -71,26 +80,51 @@ async function handleChallengeCompleted(challengeId: string): Promise<void> {
     .eq("id", challengeId)
     .maybeSingle();
 
-  if (!challenge || !challenge.winner_submitted_by || !challenge.opponent_id) return;
+  if (!challenge || !challenge.winner_submitted_by || !challenge.opponent_id) {
+    return;
+  }
   if (challenge.release_reason === "refund_void") return; // voided matches have no trust impact (Business Rules §7)
 
   const winnerId = challenge.winner_submitted_by;
-  const loserId = winnerId === challenge.creator_id ? challenge.opponent_id : challenge.creator_id;
+  const loserId = winnerId === challenge.creator_id
+    ? challenge.opponent_id
+    : challenge.creator_id;
 
   const winnerRating = await getRating(winnerId);
   const loserRating = await getRating(loserId);
   const update = computeEloUpdate(winnerRating, loserRating);
 
-  await applyRatingChange(winnerId, challengeId, update.newWinnerRating, winnerRating, "match_win", 32, loserRating);
-  await applyRatingChange(loserId, challengeId, update.newLoserRating, loserRating, "match_loss", 32, winnerRating);
+  await applyRatingChange(
+    winnerId,
+    challengeId,
+    update.newWinnerRating,
+    winnerRating,
+    "match_win",
+    32,
+    loserRating,
+  );
+  await applyRatingChange(
+    loserId,
+    challengeId,
+    update.newLoserRating,
+    loserRating,
+    "match_loss",
+    32,
+    winnerRating,
+  );
 }
 
 /** Dispute-decided adjustment: the losing side of a moderator decision
  * takes an amplified penalty (Business Rules §13); the winning side gets
  * the standard win delta, no bonus. */
 async function handleModeratorDecision(disputeId: string): Promise<void> {
-  const { data: dispute } = await supabase.from("disputes").select("challenge_id, resolution").eq("id", disputeId).maybeSingle();
-  if (!dispute || dispute.resolution === "voided" || dispute.resolution === "split") return;
+  const { data: dispute } = await supabase.from("disputes").select(
+    "challenge_id, resolution",
+  ).eq("id", disputeId).maybeSingle();
+  if (
+    !dispute || dispute.resolution === "voided" ||
+    dispute.resolution === "split"
+  ) return;
   if (await alreadyProcessed(dispute.challenge_id, "dispute_loss")) return;
 
   const { data: challenge } = await supabase
@@ -100,20 +134,32 @@ async function handleModeratorDecision(disputeId: string): Promise<void> {
     .maybeSingle();
   if (!challenge?.opponent_id) return;
 
-  const winnerId =
-    dispute.resolution === "winner_confirmed"
-      ? challenge.winner_submitted_by!
-      : challenge.winner_submitted_by === challenge.creator_id
-        ? challenge.opponent_id
-        : challenge.creator_id;
-  const loserId = winnerId === challenge.creator_id ? challenge.opponent_id : challenge.creator_id;
+  const winnerId = dispute.resolution === "winner_confirmed"
+    ? challenge.winner_submitted_by!
+    : challenge.winner_submitted_by === challenge.creator_id
+    ? challenge.opponent_id
+    : challenge.creator_id;
+  const loserId = winnerId === challenge.creator_id
+    ? challenge.opponent_id
+    : challenge.creator_id;
 
   const winnerRating = await getRating(winnerId);
   const loserRating = await getRating(loserId);
   const update = computeEloUpdate(winnerRating, loserRating);
-  const amplifiedLoserDelta = computeDisputeLossAdjustment(loserRating, update.loserDelta);
+  const amplifiedLoserDelta = computeDisputeLossAdjustment(
+    loserRating,
+    update.loserDelta,
+  );
 
-  await applyRatingChange(winnerId, dispute.challenge_id, update.newWinnerRating, winnerRating, "dispute_win", 32, loserRating);
+  await applyRatingChange(
+    winnerId,
+    dispute.challenge_id,
+    update.newWinnerRating,
+    winnerRating,
+    "dispute_win",
+    32,
+    loserRating,
+  );
   await applyRatingChange(
     loserId,
     dispute.challenge_id,
@@ -132,8 +178,12 @@ async function handleModeratorDecision(disputeId: string): Promise<void> {
  * handleModeratorDecision's own alreadyProcessed() check for idempotency,
  * so re-running this sweep is always safe.
  */
-export async function processTrustScoreEvents(lookbackHours = 24, limit = 200): Promise<{ scanned: number; adjusted: number }> {
-  const since = new Date(Date.now() - lookbackHours * 60 * 60 * 1000).toISOString();
+export async function processTrustScoreEvents(
+  lookbackHours = 24,
+  limit = 200,
+): Promise<{ scanned: number; adjusted: number }> {
+  const since = new Date(Date.now() - lookbackHours * 60 * 60 * 1000)
+    .toISOString();
 
   const { data: events, error } = await supabase
     .from("domain_events")
@@ -149,12 +199,21 @@ export async function processTrustScoreEvents(lookbackHours = 24, limit = 200): 
   for (const event of events ?? []) {
     try {
       if (event.type === "ChallengeCompleted" && event.payload?.challengeId) {
-        const before = await alreadyProcessed(event.payload.challengeId, "match_win");
+        const before = await alreadyProcessed(
+          event.payload.challengeId,
+          "match_win",
+        );
         await handleChallengeCompleted(event.payload.challengeId);
         if (!before) adjusted += 1;
-      } else if (event.type === "ModeratorDecisionRecorded" && event.payload?.disputeId) {
-        const { data: dispute } = await supabase.from("disputes").select("challenge_id").eq("id", event.payload.disputeId).maybeSingle();
-        const before = dispute ? await alreadyProcessed(dispute.challenge_id, "dispute_loss") : true;
+      } else if (
+        event.type === "ModeratorDecisionRecorded" && event.payload?.disputeId
+      ) {
+        const { data: dispute } = await supabase.from("disputes").select(
+          "challenge_id",
+        ).eq("id", event.payload.disputeId).maybeSingle();
+        const before = dispute
+          ? await alreadyProcessed(dispute.challenge_id, "dispute_loss")
+          : true;
         await handleModeratorDecision(event.payload.disputeId);
         if (!before) adjusted += 1;
       }

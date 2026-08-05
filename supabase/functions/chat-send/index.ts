@@ -1,9 +1,12 @@
 // supabase/functions/chat-send/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { sendMessage } from "../_realtime/chat.ts";
 
@@ -26,7 +29,11 @@ Deno.serve(
     {
       functionName: "chat-send",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `chat-send:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 60 }),
+      rateLimit: (ctx) => ({
+        key: `chat-send:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 60,
+      }),
     },
     handler,
   ),

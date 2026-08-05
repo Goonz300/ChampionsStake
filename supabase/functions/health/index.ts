@@ -30,7 +30,10 @@ Deno.serve(async (req: Request) => {
     const supabase = getServiceRoleClient();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const { error } = await supabase.from("games").select("id", { count: "exact", head: true }).abortSignal(controller.signal);
+    const { error } = await supabase.from("games").select("id", {
+      count: "exact",
+      head: true,
+    }).abortSignal(controller.signal);
     clearTimeout(timeout);
     databaseHealthy = !error;
   } catch {

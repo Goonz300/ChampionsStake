@@ -27,7 +27,9 @@ async function raiseFlag(
     .eq("flag_type", flagType)
     .eq("primary_user_id", primaryUserId)
     .eq("status", "open");
-  if (secondaryUserId) existingQuery = existingQuery.eq("secondary_user_id", secondaryUserId);
+  if (secondaryUserId) {
+    existingQuery = existingQuery.eq("secondary_user_id", secondaryUserId);
+  }
 
   const { data: existing } = await existingQuery.maybeSingle();
   if (existing) return;
@@ -43,7 +45,9 @@ async function raiseFlag(
 }
 
 /** Repeated-opponent / collusion signal (Business Rules §14). */
-export async function checkRepeatedOpponent(challengeId: string): Promise<void> {
+export async function checkRepeatedOpponent(
+  challengeId: string,
+): Promise<void> {
   const { data: challenge } = await supabase
     .from("challenges")
     .select("creator_id, opponent_id")
@@ -83,22 +87,33 @@ export async function checkMultiAccount(challengeId: string): Promise<void> {
     .maybeSingle();
   if (!challenge?.opponent_id) return;
 
-  const { data: creatorDevices } = await supabase.from("devices").select("device_fingerprint").eq("user_id", challenge.creator_id);
+  const { data: creatorDevices } = await supabase.from("devices").select(
+    "device_fingerprint",
+  ).eq("user_id", challenge.creator_id);
   const { data: opponentDevices } = await supabase
     .from("devices")
     .select("device_fingerprint")
     .eq("user_id", challenge.opponent_id);
 
-  const creatorSet = new Set((creatorDevices ?? []).map((d) => d.device_fingerprint));
+  const creatorSet = new Set(
+    (creatorDevices ?? []).map((d) => d.device_fingerprint),
+  );
   const sharedFingerprints = (opponentDevices ?? [])
     .map((d) => d.device_fingerprint)
     .filter((fp) => creatorSet.has(fp));
 
   if (sharedFingerprints.length === 0) return;
 
-  await raiseFlag("multi_account", challenge.creator_id, challenge.opponent_id, challengeId, MULTI_ACCOUNT_SCORE, {
-    shared_fingerprint_count: sharedFingerprints.length,
-  });
+  await raiseFlag(
+    "multi_account",
+    challenge.creator_id,
+    challenge.opponent_id,
+    challengeId,
+    MULTI_ACCOUNT_SCORE,
+    {
+      shared_fingerprint_count: sharedFingerprints.length,
+    },
+  );
 }
 
 export async function scanChallenge(challengeId: string): Promise<void> {
@@ -106,7 +121,10 @@ export async function scanChallenge(challengeId: string): Promise<void> {
   await checkMultiAccount(challengeId);
 }
 
-export async function sweepRecentChallenges(hours = 24, limit = 200): Promise<{ scanned: number }> {
+export async function sweepRecentChallenges(
+  hours = 24,
+  limit = 200,
+): Promise<{ scanned: number }> {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
   const { data: challenges } = await supabase
     .from("challenges")
@@ -129,12 +147,18 @@ export async function reviewFlag(
 ): Promise<void> {
   await supabase
     .from("fraud_flags")
-    .update({ status: outcome, reviewed_by: reviewerId, reviewed_at: new Date().toISOString() })
+    .update({
+      status: outcome,
+      reviewed_by: reviewerId,
+      reviewed_at: new Date().toISOString(),
+    })
     .eq("id", flagId);
 }
 
 export async function listFraudFlags(status?: string) {
-  let query = supabase.from("fraud_flags").select("*, primary:primary_user_id(display_name)").order("score", { ascending: false });
+  let query = supabase.from("fraud_flags").select(
+    "*, primary:primary_user_id(display_name)",
+  ).order("score", { ascending: false });
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to list fraud flags: ${error.message}`);

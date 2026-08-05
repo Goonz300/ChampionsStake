@@ -11,7 +11,10 @@ export interface CreateAnnouncementInput {
   expiresAt?: string;
 }
 
-export async function createAnnouncement(input: CreateAnnouncementInput, adminId: string): Promise<{ id: string }> {
+export async function createAnnouncement(
+  input: CreateAnnouncementInput,
+  adminId: string,
+): Promise<{ id: string }> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("announcements")
@@ -26,7 +29,9 @@ export async function createAnnouncement(input: CreateAnnouncementInput, adminId
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(`Failed to create announcement: ${error?.message}`);
+  if (error || !data) {
+    throw new Error(`Failed to create announcement: ${error?.message}`);
+  }
 
   await recordAudit({
     actorId: adminId,
@@ -40,13 +45,18 @@ export async function createAnnouncement(input: CreateAnnouncementInput, adminId
   return { id: data.id };
 }
 
-export async function publishAnnouncement(announcementId: string, adminId: string): Promise<void> {
+export async function publishAnnouncement(
+  announcementId: string,
+  adminId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
   const { error } = await supabase
     .from("announcements")
     .update({ status: "published", published_at: new Date().toISOString() })
     .eq("id", announcementId);
-  if (error) throw new Error(`Failed to publish announcement: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to publish announcement: ${error.message}`);
+  }
 
   await recordAudit({
     actorId: adminId,
@@ -58,7 +68,10 @@ export async function publishAnnouncement(announcementId: string, adminId: strin
   });
 }
 
-export async function retractAnnouncement(announcementId: string, adminId: string): Promise<void> {
+export async function retractAnnouncement(
+  announcementId: string,
+  adminId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("announcements")
@@ -67,8 +80,12 @@ export async function retractAnnouncement(announcementId: string, adminId: strin
     .select("id")
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to retract announcement: ${error.message}`);
-  if (!data) throw new NotFoundError(`Announcement ${announcementId} not found.`);
+  if (error) {
+    throw new Error(`Failed to retract announcement: ${error.message}`);
+  }
+  if (!data) {
+    throw new NotFoundError(`Announcement ${announcementId} not found.`);
+  }
 
   await recordAudit({
     actorId: adminId,
@@ -82,7 +99,9 @@ export async function retractAnnouncement(announcementId: string, adminId: strin
 
 export async function listAnnouncements(status?: string) {
   const supabase = getServiceRoleClient();
-  let query = supabase.from("announcements").select("*").order("created_at", { ascending: false });
+  let query = supabase.from("announcements").select("*").order("created_at", {
+    ascending: false,
+  });
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to list announcements: ${error.message}`);

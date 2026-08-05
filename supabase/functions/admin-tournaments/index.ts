@@ -5,23 +5,32 @@
 // tournament-archive (archiving only).
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateQuery, validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import {
+  parseJsonBody,
+  validateBody,
+  validateQuery,
+} from "../_shared/validation/validate.ts";
 import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
 import {
-  adminBrowseTournaments,
-  adminGetBracket,
-  adminGetRegistrations,
-  adminGetPrizeStatus,
   adminArchiveTournament,
+  adminBrowseTournaments,
   adminCancelTournament,
+  adminGetBracket,
+  adminGetPrizeStatus,
+  adminGetRegistrations,
 } from "../_admin/tournaments.ts";
 
 const getQuerySchema = paginationQuerySchema.extend({
-  view: z.enum(["browse", "bracket", "registrations", "prize_status"]).default("browse"),
+  view: z.enum(["browse", "bracket", "registrations", "prize_status"]).default(
+    "browse",
+  ),
   tournamentId: z.string().uuid().optional(),
   status: z.string().optional(),
 });
@@ -36,12 +45,24 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
   const query = validateQuery(getQuerySchema, url);
 
   if (query.view === "browse") {
-    return successResponse(await adminBrowseTournaments({ status: query.status, limit: query.limit, cursor: query.cursor }));
+    return successResponse(
+      await adminBrowseTournaments({
+        status: query.status,
+        limit: query.limit,
+        cursor: query.cursor,
+      }),
+    );
   }
-  if (!query.tournamentId) throw new ValidationError("tournamentId is required for this view.");
+  if (!query.tournamentId) {
+    throw new ValidationError("tournamentId is required for this view.");
+  }
 
-  if (query.view === "bracket") return successResponse(await adminGetBracket(query.tournamentId));
-  if (query.view === "registrations") return successResponse(await adminGetRegistrations(query.tournamentId));
+  if (query.view === "bracket") {
+    return successResponse(await adminGetBracket(query.tournamentId));
+  }
+  if (query.view === "registrations") {
+    return successResponse(await adminGetRegistrations(query.tournamentId));
+  }
   return successResponse(await adminGetPrizeStatus(query.tournamentId));
 }
 
@@ -64,4 +85,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-tournaments", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "admin-tournaments", auth: "required" },
+    handler,
+  ),
+);

@@ -2,7 +2,11 @@
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 
-export async function addNote(disputeId: string, authorId: string, content: string): Promise<{ id: string }> {
+export async function addNote(
+  disputeId: string,
+  authorId: string,
+  content: string,
+): Promise<{ id: string }> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("dispute_notes")

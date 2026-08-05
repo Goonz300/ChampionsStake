@@ -1,8 +1,12 @@
 // Run with: deno test supabase/functions/_shared/validation/validate.test.ts
 import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import { z } from "npm:zod@3.24.1";
-import { validateBody, validateQuery, parseJsonBody } from "./validate.ts";
-import { uuidSchema, paginationQuerySchema, dateRangeSchema } from "./schemas.ts";
+import { parseJsonBody, validateBody, validateQuery } from "./validate.ts";
+import {
+  dateRangeSchema,
+  paginationQuerySchema,
+  uuidSchema,
+} from "./schemas.ts";
 import { ValidationError } from "../errors/index.ts";
 
 Deno.test("validateBody returns parsed data for valid input", () => {
@@ -17,7 +21,10 @@ Deno.test("validateBody throws ValidationError with a descriptive message on inv
 });
 
 Deno.test("uuidSchema accepts a valid UUID and rejects a non-UUID string", () => {
-  assertEquals(uuidSchema.safeParse("11111111-1111-1111-1111-111111111111").success, true);
+  assertEquals(
+    uuidSchema.safeParse("11111111-1111-1111-1111-111111111111").success,
+    true,
+  );
   assertEquals(uuidSchema.safeParse("not-a-uuid").success, false);
 });
 
@@ -30,7 +37,10 @@ Deno.test("paginationQuerySchema applies defaults and coerces limit to a number"
 
 Deno.test("paginationQuerySchema rejects a limit above the configured max", () => {
   const url = new URL("https://example.com/api/x?limit=99999");
-  assertThrows(() => validateQuery(paginationQuerySchema, url), ValidationError);
+  assertThrows(
+    () => validateQuery(paginationQuerySchema, url),
+    ValidationError,
+  );
 });
 
 Deno.test("dateRangeSchema accepts from <= to", () => {
@@ -50,12 +60,18 @@ Deno.test("dateRangeSchema rejects from > to", () => {
 });
 
 Deno.test("parseJsonBody returns {} for an empty body", async () => {
-  const request = new Request("https://example.com", { method: "POST", body: "" });
+  const request = new Request("https://example.com", {
+    method: "POST",
+    body: "",
+  });
   const result = await parseJsonBody(request);
   assertEquals(result, {});
 });
 
 Deno.test("parseJsonBody throws ValidationError for malformed JSON", async () => {
-  const request = new Request("https://example.com", { method: "POST", body: "{not json" });
+  const request = new Request("https://example.com", {
+    method: "POST",
+    body: "{not json",
+  });
   await assertRejects(() => parseJsonBody(request), ValidationError);
 });

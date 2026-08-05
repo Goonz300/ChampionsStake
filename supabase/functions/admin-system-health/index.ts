@@ -5,7 +5,10 @@
 // in prior phases, rather than one tiny function per metric.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
@@ -15,7 +18,17 @@ import * as analytics from "../_admin/analytics.ts";
 
 const querySchema = z.object({
   view: z
-    .enum(["health", "dashboard", "user_growth", "challenge_volume", "tournament_volume", "revenue", "escrow_stats", "retention", "disputes"])
+    .enum([
+      "health",
+      "dashboard",
+      "user_growth",
+      "challenge_volume",
+      "tournament_volume",
+      "revenue",
+      "escrow_stats",
+      "retention",
+      "disputes",
+    ])
     .default("health"),
   days: z.coerce.number().int().positive().max(365).default(30),
 });
@@ -47,4 +60,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   }
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-system-health", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "admin-system-health", auth: "required" },
+    handler,
+  ),
+);

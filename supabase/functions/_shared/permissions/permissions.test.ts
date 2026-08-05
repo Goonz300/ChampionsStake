@@ -1,11 +1,11 @@
 // Run with: deno test supabase/functions/_shared/permissions/permissions.test.ts
 import { assertThrows } from "jsr:@std/assert@1";
 import {
-  requirePlayer,
-  requireVerifiedPlayer,
-  requireModerator,
   requireAdministrator,
+  requireModerator,
+  requirePlayer,
   requireSupportStaff,
+  requireVerifiedPlayer,
 } from "./index.ts";
 import { AuthenticationError, AuthorizationError } from "../errors/index.ts";
 import type { UserProfile } from "../auth/session.ts";
@@ -27,11 +27,20 @@ Deno.test("requirePlayer passes for an active account", () => {
 });
 
 Deno.test("requirePlayer throws for a suspended account regardless of role", () => {
-  assertThrows(() => requirePlayer(makeProfile({ status: "suspended", role: "administrator" })), AuthenticationError);
+  assertThrows(
+    () =>
+      requirePlayer(
+        makeProfile({ status: "suspended", role: "administrator" }),
+      ),
+    AuthenticationError,
+  );
 });
 
 Deno.test("requireVerifiedPlayer throws if KYC is not verified", () => {
-  assertThrows(() => requireVerifiedPlayer(makeProfile({ kyc_status: "pending" })), AuthorizationError);
+  assertThrows(
+    () => requireVerifiedPlayer(makeProfile({ kyc_status: "pending" })),
+    AuthorizationError,
+  );
 });
 
 Deno.test("requireVerifiedPlayer passes when KYC is verified and active", () => {
@@ -39,7 +48,10 @@ Deno.test("requireVerifiedPlayer passes when KYC is verified and active", () => 
 });
 
 Deno.test("requireModerator rejects a plain player", () => {
-  assertThrows(() => requireModerator(makeProfile({ role: "player" })), AuthorizationError);
+  assertThrows(
+    () => requireModerator(makeProfile({ role: "player" })),
+    AuthorizationError,
+  );
 });
 
 Deno.test("requireModerator accepts a moderator", () => {
@@ -51,16 +63,28 @@ Deno.test("requireModerator accepts an administrator (superset)", () => {
 });
 
 Deno.test("requireAdministrator rejects a moderator", () => {
-  assertThrows(() => requireAdministrator(makeProfile({ role: "moderator" })), AuthorizationError);
+  assertThrows(
+    () => requireAdministrator(makeProfile({ role: "moderator" })),
+    AuthorizationError,
+  );
 });
 
 Deno.test("requireSupportStaff accepts support and administrator, rejects player/moderator", () => {
   requireSupportStaff(makeProfile({ role: "support" }));
   requireSupportStaff(makeProfile({ role: "administrator" }));
-  assertThrows(() => requireSupportStaff(makeProfile({ role: "player" })), AuthorizationError);
-  assertThrows(() => requireSupportStaff(makeProfile({ role: "moderator" })), AuthorizationError);
+  assertThrows(
+    () => requireSupportStaff(makeProfile({ role: "player" })),
+    AuthorizationError,
+  );
+  assertThrows(
+    () => requireSupportStaff(makeProfile({ role: "moderator" })),
+    AuthorizationError,
+  );
 });
 
 Deno.test("a closed account is rejected even at the requirePlayer level", () => {
-  assertThrows(() => requirePlayer(makeProfile({ status: "closed" })), AuthenticationError);
+  assertThrows(
+    () => requirePlayer(makeProfile({ status: "closed" })),
+    AuthenticationError,
+  );
 });

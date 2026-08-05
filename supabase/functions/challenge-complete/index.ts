@@ -5,9 +5,12 @@
 // (which assumes a mutual-release path).
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireModerator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { completeChallenge } from "../_challenge/escrow-transition.ts";
 
@@ -25,5 +28,8 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 }
 
 Deno.serve(
-  withEdgeFunction({ functionName: "challenge-complete", auth: "required" }, handler),
+  withEdgeFunction(
+    { functionName: "challenge-complete", auth: "required" },
+    handler,
+  ),
 );

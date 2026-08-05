@@ -58,7 +58,9 @@ export function clearWithinRequestHandlers(): void {
   withinRequestHandlers.length = 0;
 }
 
-export async function emit<T = Record<string, unknown>>(event: DomainEvent<T>): Promise<void> {
+export async function emit<T = Record<string, unknown>>(
+  event: DomainEvent<T>,
+): Promise<void> {
   const supabase = getServiceRoleClient();
 
   const { error } = await supabase.from("domain_events").insert({
@@ -69,7 +71,10 @@ export async function emit<T = Record<string, unknown>>(event: DomainEvent<T>): 
   });
 
   if (error) {
-    logger.error("Failed to record domain event", { error: error.message, eventType: event.type });
+    logger.error("Failed to record domain event", {
+      error: error.message,
+      eventType: event.type,
+    });
   }
 
   for (const handler of withinRequestHandlers) {

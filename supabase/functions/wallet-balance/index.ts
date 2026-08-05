@@ -3,8 +3,14 @@
 // GET /wallet-balance — returns the caller's own balance, or (with
 // requireSupportStaff) another user's, via ?userId=.
 
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
-import { requirePlayer, requireSupportStaff } from "../_shared/permissions/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
+import {
+  requirePlayer,
+  requireSupportStaff,
+} from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { getBalance } from "../_wallet/service.ts";
 
@@ -40,7 +46,11 @@ Deno.serve(
     {
       functionName: "wallet-balance",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `wallet-balance:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 60 }),
+      rateLimit: (ctx) => ({
+        key: `wallet-balance:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 60,
+      }),
     },
     handler,
   ),

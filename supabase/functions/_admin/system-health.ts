@@ -21,7 +21,10 @@ export async function getSystemHealth(): Promise<SystemHealthReport> {
 
   let database: SystemHealthReport["database"] = "unknown";
   try {
-    const { error } = await supabase.from("profiles").select("id", { count: "exact", head: true }).limit(1);
+    const { error } = await supabase.from("profiles").select("id", {
+      count: "exact",
+      head: true,
+    }).limit(1);
     database = error ? "degraded" : "healthy";
   } catch {
     database = "degraded";

@@ -27,7 +27,10 @@ export interface SyncResult {
  * response's authoritative rows -- this server-side function has no
  * client-side state to reconcile against, so it just returns the truth.
  */
-export async function syncSince(userId: string, sinceTimestamp: string): Promise<SyncResult> {
+export async function syncSince(
+  userId: string,
+  sinceTimestamp: string,
+): Promise<SyncResult> {
   const supabase = getServiceRoleClient();
 
   const { data: notifications } = await supabase
@@ -58,14 +61,24 @@ export async function syncSince(userId: string, sinceTimestamp: string): Promise
     }
   }
 
-  return { notifications: notifications ?? [], messages, serverTime: new Date().toISOString() };
+  return {
+    notifications: notifications ?? [],
+    messages,
+    serverTime: new Date().toISOString(),
+  };
 }
 
 /** Scoped resync for a single challenge chat (used when a client
  * reconnects to one open chat screen rather than the whole app). */
-export async function syncChallengeSince(challengeId: string, userId: string, sinceTimestamp: string) {
+export async function syncChallengeSince(
+  challengeId: string,
+  userId: string,
+  sinceTimestamp: string,
+) {
   if (!(await isParticipant(challengeId, userId))) {
-    throw new AuthorizationError("Only challenge participants may sync this chat.");
+    throw new AuthorizationError(
+      "Only challenge participants may sync this chat.",
+    );
   }
 
   const supabase = getServiceRoleClient();
@@ -76,6 +89,8 @@ export async function syncChallengeSince(challengeId: string, userId: string, si
     .gt("created_at", sinceTimestamp)
     .order("created_at", { ascending: true });
 
-  if (error) throw new Error(`Failed to sync challenge messages: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to sync challenge messages: ${error.message}`);
+  }
   return data ?? [];
 }

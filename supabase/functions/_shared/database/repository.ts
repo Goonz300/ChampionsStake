@@ -16,20 +16,29 @@ export abstract class Repository<TRow extends { id: string }> {
   ) {}
 
   async findById(id: string): Promise<TRow> {
-    const { data, error } = await this.client.from(this.tableName).select("*").eq("id", id).single();
+    const { data, error } = await this.client.from(this.tableName).select("*")
+      .eq("id", id).single();
 
     if (error || !data) {
-      throw new NotFoundError(`${this.tableName} with id "${id}" was not found.`);
+      throw new NotFoundError(
+        `${this.tableName} with id "${id}" was not found.`,
+      );
     }
     return data as TRow;
   }
 
   async findByIdOrNull(id: string): Promise<TRow | null> {
-    const { data } = await this.client.from(this.tableName).select("*").eq("id", id).maybeSingle();
+    const { data } = await this.client.from(this.tableName).select("*").eq(
+      "id",
+      id,
+    ).maybeSingle();
     return (data as TRow | null) ?? null;
   }
 
-  async list(filters: Partial<TRow> = {}, options: { limit?: number; cursor?: string } = {}): Promise<TRow[]> {
+  async list(
+    filters: Partial<TRow> = {},
+    options: { limit?: number; cursor?: string } = {},
+  ): Promise<TRow[]> {
     let query = this.client.from(this.tableName).select("*");
 
     for (const [key, value] of Object.entries(filters)) {
@@ -43,13 +52,20 @@ export abstract class Repository<TRow extends { id: string }> {
     query = query.order("id", { ascending: true }).limit(options.limit ?? 20);
 
     const { data, error } = await query;
-    if (error) throw new Error(`Failed to list ${this.tableName}: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to list ${this.tableName}: ${error.message}`);
+    }
     return (data as TRow[]) ?? [];
   }
 
   async insert(row: Partial<TRow>): Promise<TRow> {
-    const { data, error } = await this.client.from(this.tableName).insert(row).select("*").single();
-    if (error || !data) throw new Error(`Failed to insert into ${this.tableName}: ${error?.message}`);
+    const { data, error } = await this.client.from(this.tableName).insert(row)
+      .select("*").single();
+    if (error || !data) {
+      throw new Error(
+        `Failed to insert into ${this.tableName}: ${error?.message}`,
+      );
+    }
     return data as TRow;
   }
 
@@ -60,7 +76,11 @@ export abstract class Repository<TRow extends { id: string }> {
       .eq("id", id)
       .select("*")
       .single();
-    if (error || !data) throw new Error(`Failed to update ${this.tableName} id=${id}: ${error?.message}`);
+    if (error || !data) {
+      throw new Error(
+        `Failed to update ${this.tableName} id=${id}: ${error?.message}`,
+      );
+    }
     return data as TRow;
   }
 }

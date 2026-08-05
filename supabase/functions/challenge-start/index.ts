@@ -4,9 +4,12 @@
 // actually elapsed server-side, so this never trusts a client's timer.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { config } from "../_shared/config/index.ts";
 import { startMatch } from "../_challenge/escrow-transition.ts";
@@ -27,7 +30,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   if (!isScheduledCall(ctx.request)) {
     requirePlayer(ctx.profile!);
     if (!(await isParticipant(body.challengeId, ctx.user!.id))) {
-      throw new AuthorizationError("Only challenge participants may trigger match start.");
+      throw new AuthorizationError(
+        "Only challenge participants may trigger match start.",
+      );
     }
   }
 
@@ -36,5 +41,8 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 }
 
 Deno.serve(
-  withEdgeFunction({ functionName: "challenge-start", auth: "optional" }, handler),
+  withEdgeFunction(
+    { functionName: "challenge-start", auth: "optional" },
+    handler,
+  ),
 );

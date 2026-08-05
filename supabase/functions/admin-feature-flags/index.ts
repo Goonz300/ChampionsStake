@@ -1,12 +1,18 @@
 // supabase/functions/admin-feature-flags/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
-import { listFeatureFlags, toggleFeatureFlag } from "../_admin/feature-flags.ts";
+import {
+  listFeatureFlags,
+  toggleFeatureFlag,
+} from "../_admin/feature-flags.ts";
 
 const bodySchema = z.object({ key: z.string().min(1), enabled: z.boolean() });
 
@@ -26,4 +32,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-feature-flags", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "admin-feature-flags", auth: "required" },
+    handler,
+  ),
+);

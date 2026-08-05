@@ -23,7 +23,12 @@ Deno.serve(async (req: Request) => {
   } catch (err) {
     return new Response(
       JSON.stringify({
-        error: { code: "VALIDATION_ERROR", message: err instanceof Error ? err.message : "Webhook processing failed." },
+        error: {
+          code: "VALIDATION_ERROR",
+          message: err instanceof Error
+            ? err.message
+            : "Webhook processing failed.",
+        },
       }),
       { status: 400, headers: { "Content-Type": "application/json" } },
     );

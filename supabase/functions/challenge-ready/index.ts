@@ -4,9 +4,12 @@
 // move money or create a new resource).
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { readyCheck } from "../_challenge/escrow-transition.ts";
 
@@ -26,7 +29,11 @@ Deno.serve(
     {
       functionName: "challenge-ready",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `challenge-ready:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 20 }),
+      rateLimit: (ctx) => ({
+        key: `challenge-ready:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
     },
     handler,
   ),

@@ -8,7 +8,10 @@
 // WALLET-001-deliverable.md for the pg_cron wiring, which mirrors migration
 // 0033 from STORE-001.
 
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { AuthenticationError } from "../_shared/errors/index.ts";

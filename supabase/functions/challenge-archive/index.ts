@@ -2,7 +2,10 @@
 // Scheduled sweep: archives completed/cancelled/expired challenges past a
 // retention window (default 30 days), mirroring challenge-expire's pattern.
 
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { AuthenticationError } from "../_shared/errors/index.ts";
@@ -25,7 +28,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     requireAdministrator(ctx.profile);
   }
 
-  const cutoff = new Date(Date.now() - ARCHIVE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(
+    Date.now() - ARCHIVE_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
   const supabase = getServiceRoleClient();
 
   const { data: candidates, error } = await supabase
@@ -34,7 +39,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     .in("status", ["completed", "cancelled", "expired"])
     .limit(500);
 
-  if (error) throw new Error(`Failed to query archivable challenges: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to query archivable challenges: ${error.message}`);
+  }
 
   let archived = 0;
   const failures: string[] = [];
@@ -48,13 +55,23 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       archived += 1;
     } catch (err) {
       failures.push(row.id);
-      logger.error("Failed to archive challenge", { challengeId: row.id, error: err instanceof Error ? err.message : String(err) });
+      logger.error("Failed to archive challenge", {
+        challengeId: row.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
-  return successResponse({ candidates: (candidates ?? []).length, archived, failures });
+  return successResponse({
+    candidates: (candidates ?? []).length,
+    archived,
+    failures,
+  });
 }
 
 Deno.serve(
-  withEdgeFunction({ functionName: "challenge-archive", auth: "optional" }, handler),
+  withEdgeFunction(
+    { functionName: "challenge-archive", auth: "optional" },
+    handler,
+  ),
 );

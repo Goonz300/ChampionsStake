@@ -43,11 +43,15 @@ export async function assertNonceNotReused(nonce: string): Promise<void> {
 
   if (error) {
     // Unique-violation on the primary key means this nonce was already used.
-    throw new AuthenticationError("This request has already been processed (replay detected).");
+    throw new AuthenticationError(
+      "This request has already been processed (replay detected).",
+    );
   }
 }
 
-export async function assertNotReplayed(input: ReplayCheckInput): Promise<void> {
+export async function assertNotReplayed(
+  input: ReplayCheckInput,
+): Promise<void> {
   assertWithinReplayWindow(input.timestamp);
   await assertNonceNotReused(input.nonce);
 }

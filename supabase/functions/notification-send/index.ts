@@ -3,7 +3,10 @@
 // into notifications rows. Mirrors the dual admin-or-scheduled-secret
 // pattern established since STORE-001.
 
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { AuthenticationError } from "../_shared/errors/index.ts";
@@ -26,4 +29,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   return successResponse(result);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "notification-send", auth: "optional" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "notification-send", auth: "optional" },
+    handler,
+  ),
+);

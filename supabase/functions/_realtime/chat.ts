@@ -17,7 +17,12 @@
 // STORE-001 calls, not reimplementing its validation/authorization logic.
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
-import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "../_shared/errors/index.ts";
+import {
+  AuthorizationError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../_shared/errors/index.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { isParticipant } from "../_challenge/repository.ts";
@@ -32,9 +37,13 @@ export interface SendMessageInput {
   fileUploadId?: string; // required for image/video/voice
 }
 
-export async function sendMessage(input: SendMessageInput): Promise<{ id: string }> {
+export async function sendMessage(
+  input: SendMessageInput,
+): Promise<{ id: string }> {
   if (!(await isParticipant(input.challengeId, input.senderId))) {
-    throw new AuthorizationError("Only challenge participants may send chat messages.");
+    throw new AuthorizationError(
+      "Only challenge participants may send chat messages.",
+    );
   }
 
   const supabase = getServiceRoleClient();
@@ -43,7 +52,9 @@ export async function sendMessage(input: SendMessageInput): Promise<{ id: string
 
   if (input.type !== "text") {
     if (!input.fileUploadId) {
-      throw new ValidationError(`fileUploadId is required for a "${input.type}" message.`);
+      throw new ValidationError(
+        `fileUploadId is required for a "${input.type}" message.`,
+      );
     }
     const { data: upload, error } = await supabase
       .from("file_uploads")
@@ -51,13 +62,26 @@ export async function sendMessage(input: SendMessageInput): Promise<{ id: string
       .eq("id", input.fileUploadId)
       .maybeSingle();
 
-    if (error || !upload) throw new NotFoundError("Referenced file upload not found.");
-    if (upload.owner_id !== input.senderId) throw new AuthorizationError("You may only attach your own uploads.");
-    if (upload.status !== "active") throw new ConflictError("This upload is not yet available (still processing or quarantined).");
-    if (!["chat-media", "voice-notes"].includes(upload.bucket)) {
-      throw new ValidationError(`Bucket "${upload.bucket}" is not valid for chat attachments.`);
+    if (error || !upload) {
+      throw new NotFoundError("Referenced file upload not found.");
     }
-    if (upload.related_table !== "challenges" || upload.related_id !== input.challengeId) {
+    if (upload.owner_id !== input.senderId) {
+      throw new AuthorizationError("You may only attach your own uploads.");
+    }
+    if (upload.status !== "active") {
+      throw new ConflictError(
+        "This upload is not yet available (still processing or quarantined).",
+      );
+    }
+    if (!["chat-media", "voice-notes"].includes(upload.bucket)) {
+      throw new ValidationError(
+        `Bucket "${upload.bucket}" is not valid for chat attachments.`,
+      );
+    }
+    if (
+      upload.related_table !== "challenges" ||
+      upload.related_id !== input.challengeId
+    ) {
       throw new ValidationError("This upload was not made for this challenge.");
     }
 
@@ -80,7 +104,9 @@ export async function sendMessage(input: SendMessageInput): Promise<{ id: string
     .select("id")
     .single();
 
-  if (insertError || !message) throw new Error(`Failed to send message: ${insertError?.message}`);
+  if (insertError || !message) {
+    throw new Error(`Failed to send message: ${insertError?.message}`);
+  }
 
   await recordAudit({
     actorId: input.senderId,
@@ -94,7 +120,12 @@ export async function sendMessage(input: SendMessageInput): Promise<{ id: string
 
   await emit({
     type: "NotificationQueued",
-    payload: { reason: "chat_message", challengeId: input.challengeId, messageId: message.id, senderId: input.senderId },
+    payload: {
+      reason: "chat_message",
+      challengeId: input.challengeId,
+      messageId: message.id,
+      senderId: input.senderId,
+    },
     emittedBy: "chat-send",
   });
 
@@ -104,7 +135,10 @@ export async function sendMessage(input: SendMessageInput): Promise<{ id: string
 /** System messages (challenge state changes, escrow updates, moderator
  * notices) — sender_id is null, bypassing participant checks since the
  * system is always allowed to post. */
-export async function sendSystemMessage(challengeId: string, content: string): Promise<void> {
+export async function sendSystemMessage(
+  challengeId: string,
+  content: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
   await supabase.from("challenge_messages").insert({
     challenge_id: challengeId,
@@ -114,16 +148,26 @@ export async function sendSystemMessage(challengeId: string, content: string): P
   });
 }
 
-export async function editMessage(messageId: string, senderId: string, newContent: string): Promise<void> {
+export async function editMessage(
+  messageId: string,
+  senderId: string,
+  newContent: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { data: message, error } = await supabase.from("challenge_messages").select("*").eq("id", messageId).maybeSingle();
+  const { data: message, error } = await supabase.from("challenge_messages")
+    .select("*").eq("id", messageId).maybeSingle();
   if (error || !message) throw new NotFoundError("Message not found.");
 
-  if (message.sender_id !== senderId) throw new AuthorizationError("Only the sender may edit this message.");
+  if (message.sender_id !== senderId) {
+    throw new AuthorizationError("Only the sender may edit this message.");
+  }
 
-  const ageMinutes = (Date.now() - new Date(message.created_at).getTime()) / 60000;
+  const ageMinutes = (Date.now() - new Date(message.created_at).getTime()) /
+    60000;
   if (ageMinutes > EDIT_WINDOW_MINUTES) {
-    throw new ConflictError(`The ${EDIT_WINDOW_MINUTES}-minute edit window for this message has passed.`);
+    throw new ConflictError(
+      `The ${EDIT_WINDOW_MINUTES}-minute edit window for this message has passed.`,
+    );
   }
 
   const { error: updateError } = await supabase
@@ -138,7 +182,9 @@ export async function editMessage(messageId: string, senderId: string, newConten
   // fn_messages_seen_by_only_guard (migration 0049) enforces the same
   // window/sender/terminal-state rules again at the database layer —
   // this is defense-in-depth, not the sole check.
-  if (updateError) throw new Error(`Failed to edit message: ${updateError.message}`);
+  if (updateError) {
+    throw new Error(`Failed to edit message: ${updateError.message}`);
+  }
 
   await recordAudit({
     actorId: senderId,
@@ -150,12 +196,18 @@ export async function editMessage(messageId: string, senderId: string, newConten
   });
 }
 
-export async function deleteMessage(messageId: string, senderId: string): Promise<void> {
+export async function deleteMessage(
+  messageId: string,
+  senderId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { data: message, error } = await supabase.from("challenge_messages").select("*").eq("id", messageId).maybeSingle();
+  const { data: message, error } = await supabase.from("challenge_messages")
+    .select("*").eq("id", messageId).maybeSingle();
   if (error || !message) throw new NotFoundError("Message not found.");
 
-  if (message.sender_id !== senderId) throw new AuthorizationError("Only the sender may delete this message.");
+  if (message.sender_id !== senderId) {
+    throw new AuthorizationError("Only the sender may delete this message.");
+  }
 
   const { error: updateError } = await supabase
     .from("challenge_messages")
@@ -167,7 +219,9 @@ export async function deleteMessage(messageId: string, senderId: string): Promis
     })
     .eq("id", messageId);
 
-  if (updateError) throw new Error(`Failed to delete message: ${updateError.message}`);
+  if (updateError) {
+    throw new Error(`Failed to delete message: ${updateError.message}`);
+  }
 
   await recordAudit({
     actorId: senderId,
@@ -182,9 +236,16 @@ export async function deleteMessage(messageId: string, senderId: string): Promis
 /** Fetches messages, resolving media_url storage paths into short-lived
  * signed URLs at read time (never stores a signed URL, which would go
  * stale). Deletes are shown as tombstones (no content/media). */
-export async function getMessages(challengeId: string, callerId: string, cursor?: string, limit = 50) {
+export async function getMessages(
+  challengeId: string,
+  callerId: string,
+  cursor?: string,
+  limit = 50,
+) {
   if (!(await isParticipant(challengeId, callerId))) {
-    throw new AuthorizationError("Only challenge participants may view this chat.");
+    throw new AuthorizationError(
+      "Only challenge participants may view this chat.",
+    );
   }
 
   const supabase = getServiceRoleClient();
@@ -205,7 +266,8 @@ export async function getMessages(challengeId: string, callerId: string, cursor?
     let mediaUrl = row.media_url;
     if (mediaUrl && row.type !== "text" && !row.deleted_at) {
       const bucket = row.type === "voice" ? "voice-notes" : "chat-media";
-      const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(mediaUrl, 3600);
+      const { data: signed } = await supabase.storage.from(bucket)
+        .createSignedUrl(mediaUrl, 3600);
       mediaUrl = signed?.signedUrl ?? null;
     }
     resolved.push({ ...row, media_url: row.deleted_at ? null : mediaUrl });
@@ -214,20 +276,34 @@ export async function getMessages(challengeId: string, callerId: string, cursor?
   return resolved;
 }
 
-export async function markDelivered(messageId: string, userId: string): Promise<void> {
+export async function markDelivered(
+  messageId: string,
+  userId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
   await supabase
     .from("message_receipts")
-    .upsert({ message_id: messageId, user_id: userId, delivered_at: new Date().toISOString() }, { onConflict: "message_id,user_id" });
+    .upsert({
+      message_id: messageId,
+      user_id: userId,
+      delivered_at: new Date().toISOString(),
+    }, { onConflict: "message_id,user_id" });
 }
 
-export async function markSeen(challengeId: string, userId: string, upToMessageId: string): Promise<void> {
+export async function markSeen(
+  challengeId: string,
+  userId: string,
+  upToMessageId: string,
+): Promise<void> {
   if (!(await isParticipant(challengeId, userId))) {
-    throw new AuthorizationError("Only challenge participants may mark messages seen.");
+    throw new AuthorizationError(
+      "Only challenge participants may mark messages seen.",
+    );
   }
 
   const supabase = getServiceRoleClient();
-  const { data: upToMessage } = await supabase.from("challenge_messages").select("created_at").eq("id", upToMessageId).single();
+  const { data: upToMessage } = await supabase.from("challenge_messages")
+    .select("created_at").eq("id", upToMessageId).single();
   if (!upToMessage) throw new NotFoundError("Message not found.");
 
   const { data: messages } = await supabase
@@ -246,6 +322,8 @@ export async function markSeen(challengeId: string, userId: string, upToMessageI
     }
     await supabase
       .from("message_receipts")
-      .upsert({ message_id: msg.id, user_id: userId, seen_at: now }, { onConflict: "message_id,user_id" });
+      .upsert({ message_id: msg.id, user_id: userId, seen_at: now }, {
+        onConflict: "message_id,user_id",
+      });
   }
 }

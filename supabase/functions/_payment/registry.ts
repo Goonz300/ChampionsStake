@@ -31,11 +31,17 @@ export async function getActiveProvider(): Promise<PaymentProvider> {
     .maybeSingle();
 
   if (data && !data.enabled) {
-    throw new Error("Real-money payment processing is currently disabled (real_money_enabled feature flag).");
+    throw new Error(
+      "Real-money payment processing is currently disabled (real_money_enabled feature flag).",
+    );
   }
 
   const provider = PROVIDERS[DEFAULT_PROVIDER];
-  if (!provider) throw new Error(`No payment provider registered for key "${DEFAULT_PROVIDER}".`);
+  if (!provider) {
+    throw new Error(
+      `No payment provider registered for key "${DEFAULT_PROVIDER}".`,
+    );
+  }
   return provider;
 }
 

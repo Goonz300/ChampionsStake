@@ -90,12 +90,21 @@ export interface RefundResult {
 export interface PaymentProvider {
   readonly name: string;
 
-  initializeTransaction(input: InitializeTransactionInput): Promise<InitializeTransactionResult>;
+  initializeTransaction(
+    input: InitializeTransactionInput,
+  ): Promise<InitializeTransactionResult>;
   verifyTransaction(providerRef: string): Promise<VerifyTransactionResult>;
-  verifyWebhookSignature(rawBody: string, signatureHeader: string | null): Promise<WebhookVerificationResult>;
+  verifyWebhookSignature(
+    rawBody: string,
+    signatureHeader: string | null,
+  ): Promise<WebhookVerificationResult>;
 
-  createTransferRecipient(input: CreateTransferRecipientInput): Promise<CreateTransferRecipientResult>;
-  initiateTransfer(input: InitiateTransferInput): Promise<InitiateTransferResult>;
+  createTransferRecipient(
+    input: CreateTransferRecipientInput,
+  ): Promise<CreateTransferRecipientResult>;
+  initiateTransfer(
+    input: InitiateTransferInput,
+  ): Promise<InitiateTransferResult>;
   getTransferStatus(providerRef: string): Promise<TransferStatusResult>;
 
   /** Architecture-only in this phase — see refund-service.ts's header note

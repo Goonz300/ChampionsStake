@@ -1,8 +1,17 @@
 // supabase/functions/_moderator/types.ts
 
-export type DisputeStatus = "open" | "under_review" | "resolved" | "appealed" | "closed";
+export type DisputeStatus =
+  | "open"
+  | "under_review"
+  | "resolved"
+  | "appealed"
+  | "closed";
 export type DisputePriority = "low" | "normal" | "high" | "urgent";
-export type DisputeResolution = "winner_confirmed" | "opponent_confirmed" | "split" | "voided";
+export type DisputeResolution =
+  | "winner_confirmed"
+  | "opponent_confirmed"
+  | "split"
+  | "voided";
 
 export interface Dispute {
   id: string;

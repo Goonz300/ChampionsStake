@@ -20,9 +20,15 @@ import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { AuthorizationError } from "../_shared/errors/index.ts";
 import { isParticipant } from "../_challenge/repository.ts";
 
-export async function broadcastTyping(challengeId: string, userId: string, isTyping: boolean): Promise<void> {
+export async function broadcastTyping(
+  challengeId: string,
+  userId: string,
+  isTyping: boolean,
+): Promise<void> {
   if (!(await isParticipant(challengeId, userId))) {
-    throw new AuthorizationError("Only challenge participants may broadcast typing status.");
+    throw new AuthorizationError(
+      "Only challenge participants may broadcast typing status.",
+    );
   }
 
   const supabase = getServiceRoleClient();

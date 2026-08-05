@@ -9,13 +9,25 @@
 // archiving logic (archiveChallengeAdmin below is a direct re-export).
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateQuery, validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import {
+  parseJsonBody,
+  validateBody,
+  validateQuery,
+} from "../_shared/validation/validate.ts";
 import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
-import { adminBrowseChallenges, forceCancelChallenge, archiveChallengeAdmin, getChallengeTimelineAdmin } from "../_admin/challenges.ts";
+import {
+  adminBrowseChallenges,
+  archiveChallengeAdmin,
+  forceCancelChallenge,
+  getChallengeTimelineAdmin,
+} from "../_admin/challenges.ts";
 import { searchAuditLogs } from "../_admin/audit.ts";
 
 const getQuerySchema = paginationQuerySchema.extend({
@@ -26,7 +38,11 @@ const getQuerySchema = paginationQuerySchema.extend({
 });
 
 const postBodySchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("force_cancel"), challengeId: z.string().uuid(), reason: z.string().min(1) }),
+  z.object({
+    action: z.literal("force_cancel"),
+    challengeId: z.string().uuid(),
+    reason: z.string().min(1),
+  }),
   z.object({ action: z.literal("archive"), challengeId: z.string().uuid() }),
 ]);
 
@@ -36,15 +52,31 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
 
   if (query.view === "browse") {
     return successResponse(
-      await adminBrowseChallenges({ status: query.status, gameId: query.gameId, limit: query.limit, cursor: query.cursor }),
+      await adminBrowseChallenges({
+        status: query.status,
+        gameId: query.gameId,
+        limit: query.limit,
+        cursor: query.cursor,
+      }),
     );
   }
-  if (!query.challengeId) throw new ValidationError("challengeId is required for timeline/audit views.");
+  if (!query.challengeId) {
+    throw new ValidationError(
+      "challengeId is required for timeline/audit views.",
+    );
+  }
 
-  if (query.view === "timeline") return successResponse(await getChallengeTimelineAdmin(query.challengeId));
+  if (query.view === "timeline") {
+    return successResponse(await getChallengeTimelineAdmin(query.challengeId));
+  }
 
   return successResponse(
-    await searchAuditLogs({ targetTable: "challenges", targetId: query.challengeId, limit: query.limit, cursor: query.cursor }),
+    await searchAuditLogs({
+      targetTable: "challenges",
+      targetId: query.challengeId,
+      limit: query.limit,
+      cursor: query.cursor,
+    }),
   );
 }
 
@@ -67,4 +99,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-challenges", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "admin-challenges", auth: "required" },
+    handler,
+  ),
+);

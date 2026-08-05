@@ -4,14 +4,19 @@
 // 5 separate Edge Functions each doing one SELECT.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
 
 const querySchema = z.object({
-  view: z.enum(["list", "bracket", "standings", "participants"]).default("list"),
+  view: z.enum(["list", "bracket", "standings", "participants"]).default(
+    "list",
+  ),
   tournamentId: z.string().uuid().optional(),
   gameId: z.string().uuid().optional(),
   status: z.string().optional(),
@@ -23,7 +28,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   const supabase = getServiceRoleClient();
 
   if (query.view === "list") {
-    let q = supabase.from("tournaments").select("*").order("starts_at", { ascending: true });
+    let q = supabase.from("tournaments").select("*").order("starts_at", {
+      ascending: true,
+    });
     if (query.gameId) q = q.eq("game_id", query.gameId);
     if (query.status) q = q.eq("status", query.status);
     const { data, error } = await q;
@@ -32,13 +39,17 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   }
 
   if (!query.tournamentId) {
-    throw new ValidationError("tournamentId is required for bracket/standings/participants views.");
+    throw new ValidationError(
+      "tournamentId is required for bracket/standings/participants views.",
+    );
   }
 
   if (query.view === "bracket") {
     const { data, error } = await supabase
       .from("tournament_rounds")
-      .select("*, tournament_matches(*, challenges(id, status, winner_submitted_by, creator_id, opponent_id))")
+      .select(
+        "*, tournament_matches(*, challenges(id, status, winner_submitted_by, creator_id, opponent_id))",
+      )
       .eq("tournament_id", query.tournamentId)
       .order("round_number", { ascending: true });
     if (error) throw new Error(error.message);
@@ -48,7 +59,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   if (query.view === "participants" || query.view === "standings") {
     const { data, error } = await supabase
       .from("tournament_registrations")
-      .select("user_id, seed, checked_in_at, eliminated, forfeited, profiles(display_name, trust_score)")
+      .select(
+        "user_id, seed, checked_in_at, eliminated, forfeited, profiles(display_name, trust_score)",
+      )
       .eq("tournament_id", query.tournamentId)
       .order("seed", { ascending: true });
     if (error) throw new Error(error.message);
@@ -58,4 +71,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported view: ${query.view}`);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "tournament-browse", auth: "optional" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "tournament-browse", auth: "optional" },
+    handler,
+  ),
+);

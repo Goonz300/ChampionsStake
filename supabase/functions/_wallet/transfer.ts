@@ -13,7 +13,12 @@ import { postBalancedEntries } from "./ledger.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { WalletError } from "../_shared/errors/index.ts";
-import type { LedgerLeg, RelatedEntityRef, TransferResult, TransactionType } from "./types.ts";
+import type {
+  LedgerLeg,
+  RelatedEntityRef,
+  TransactionType,
+  TransferResult,
+} from "./types.ts";
 
 async function execute(
   legs: LedgerLeg[],
@@ -23,9 +28,19 @@ async function execute(
   relatedEntity?: RelatedEntityRef,
   idempotencyKey?: string,
 ): Promise<TransferResult> {
-  const result = await postBalancedEntries({ type, legs, initiatedBy, relatedEntity, idempotencyKey });
+  const result = await postBalancedEntries({
+    type,
+    legs,
+    initiatedBy,
+    relatedEntity,
+    idempotencyKey,
+  });
 
-  const walletIds = [...new Set(legs.map((l) => l.walletId).filter((id): id is string => id !== null))];
+  const walletIds = [
+    ...new Set(
+      legs.map((l) => l.walletId).filter((id): id is string => id !== null),
+    ),
+  ];
 
   await recordAudit({
     actorId: initiatedBy,
@@ -68,8 +83,18 @@ export async function walletToWallet(
 
   return execute(
     [
-      { walletId: fromWalletId, accountType: "available", direction: "debit", amountCents },
-      { walletId: toWalletId, accountType: "available", direction: "credit", amountCents },
+      {
+        walletId: fromWalletId,
+        accountType: "available",
+        direction: "debit",
+        amountCents,
+      },
+      {
+        walletId: toWalletId,
+        accountType: "available",
+        direction: "credit",
+        amountCents,
+      },
     ],
     "adjustment",
     initiatedBy,
@@ -118,22 +143,43 @@ export async function releaseFromEscrow(
   toWalletId: string,
   amountCents: number,
   feeCents: number,
-  releaseReason: "mutual_release" | "moderator_decision" | "auto_expiry" | "refund_void",
+  releaseReason:
+    | "mutual_release"
+    | "moderator_decision"
+    | "auto_expiry"
+    | "refund_void",
   relatedEntity: RelatedEntityRef,
   initiatedBy: string | null,
   idempotencyKey?: string,
 ): Promise<TransferResult> {
   if (feeCents >= amountCents) {
-    throw new WalletError("Platform fee cannot be greater than or equal to the released amount.");
+    throw new WalletError(
+      "Platform fee cannot be greater than or equal to the released amount.",
+    );
   }
 
   const legs: LedgerLeg[] = [
-    { walletId: fromWalletId, accountType: "escrowed", direction: "debit", amountCents },
-    { walletId: toWalletId, accountType: "available", direction: "credit", amountCents: amountCents - feeCents },
+    {
+      walletId: fromWalletId,
+      accountType: "escrowed",
+      direction: "debit",
+      amountCents,
+    },
+    {
+      walletId: toWalletId,
+      accountType: "available",
+      direction: "credit",
+      amountCents: amountCents - feeCents,
+    },
   ];
 
   if (feeCents > 0) {
-    legs.push({ walletId: null, accountType: "platform_fee_revenue", direction: "credit", amountCents: feeCents });
+    legs.push({
+      walletId: null,
+      accountType: "platform_fee_revenue",
+      direction: "credit",
+      amountCents: feeCents,
+    });
   }
 
   const result = await postBalancedEntries({
@@ -152,12 +198,27 @@ export async function releaseFromEscrow(
     category: "financial",
     targetTable: "wallet_transactions",
     targetId: result.transactionId,
-    metadata: { fromWalletId, toWalletId, amountCents, feeCents, releaseReason, relatedEntity },
+    metadata: {
+      fromWalletId,
+      toWalletId,
+      amountCents,
+      feeCents,
+      releaseReason,
+      relatedEntity,
+    },
   });
 
   for (const walletId of [fromWalletId, toWalletId]) {
-    await emit({ type: "TransactionCompleted", payload: { walletId, transactionId: result.transactionId }, emittedBy: "wallet-transfer" });
-    await emit({ type: "BalanceChanged", payload: { walletId }, emittedBy: "wallet-transfer" });
+    await emit({
+      type: "TransactionCompleted",
+      payload: { walletId, transactionId: result.transactionId },
+      emittedBy: "wallet-transfer",
+    });
+    await emit({
+      type: "BalanceChanged",
+      payload: { walletId },
+      emittedBy: "wallet-transfer",
+    });
   }
 
   return result;
@@ -175,7 +236,12 @@ export async function platformToWallet(
 
   return execute(
     [
-      { walletId: null, accountType: "platform_clearing", direction: "debit", amountCents },
+      {
+        walletId: null,
+        accountType: "platform_clearing",
+        direction: "debit",
+        amountCents,
+      },
       { walletId: toWalletId, accountType, direction: "credit", amountCents },
     ],
     type,
@@ -201,16 +267,25 @@ export async function administrativeAdjustment(
   approvedByAdminIds: [string, string],
   idempotencyKey?: string,
 ): Promise<TransferResult> {
-  const legs: LedgerLeg[] =
-    direction === "credit"
-      ? [
-          { walletId: null, accountType: "platform_clearing", direction: "debit", amountCents },
-          { walletId, accountType: "available", direction: "credit", amountCents },
-        ]
-      : [
-          { walletId, accountType: "available", direction: "debit", amountCents },
-          { walletId: null, accountType: "platform_clearing", direction: "credit", amountCents },
-        ];
+  const legs: LedgerLeg[] = direction === "credit"
+    ? [
+      {
+        walletId: null,
+        accountType: "platform_clearing",
+        direction: "debit",
+        amountCents,
+      },
+      { walletId, accountType: "available", direction: "credit", amountCents },
+    ]
+    : [
+      { walletId, accountType: "available", direction: "debit", amountCents },
+      {
+        walletId: null,
+        accountType: "platform_clearing",
+        direction: "credit",
+        amountCents,
+      },
+    ];
 
   const result = await postBalancedEntries({
     type: "adjustment",
@@ -226,11 +301,26 @@ export async function administrativeAdjustment(
     category: "financial",
     targetTable: "wallet_transactions",
     targetId: result.transactionId,
-    metadata: { walletId, amountCents, direction, reason, proposedBy: approvedByAdminIds[0], approvedBy: approvedByAdminIds[1] },
+    metadata: {
+      walletId,
+      amountCents,
+      direction,
+      reason,
+      proposedBy: approvedByAdminIds[0],
+      approvedBy: approvedByAdminIds[1],
+    },
   });
 
-  await emit({ type: "TransactionCompleted", payload: { walletId, transactionId: result.transactionId }, emittedBy: "wallet-adjustment" });
-  await emit({ type: "BalanceChanged", payload: { walletId }, emittedBy: "wallet-adjustment" });
+  await emit({
+    type: "TransactionCompleted",
+    payload: { walletId, transactionId: result.transactionId },
+    emittedBy: "wallet-adjustment",
+  });
+  await emit({
+    type: "BalanceChanged",
+    payload: { walletId },
+    emittedBy: "wallet-adjustment",
+  });
 
   return result;
 }
@@ -257,7 +347,12 @@ export async function completeDeposit(
   const result = await postBalancedEntries({
     type: "deposit",
     legs: [
-      { walletId: null, accountType: "platform_clearing", direction: "debit", amountCents },
+      {
+        walletId: null,
+        accountType: "platform_clearing",
+        direction: "debit",
+        amountCents,
+      },
       { walletId, accountType: "available", direction: "credit", amountCents },
     ],
     initiatedBy: null,
@@ -273,8 +368,16 @@ export async function completeDeposit(
     targetId: result.transactionId,
     metadata: { walletId, amountCents, provider, providerRef },
   });
-  await emit({ type: "TransactionCompleted", payload: { walletId, transactionId: result.transactionId, type: "deposit" }, emittedBy: "payment-webhook" });
-  await emit({ type: "BalanceChanged", payload: { walletId }, emittedBy: "payment-webhook" });
+  await emit({
+    type: "TransactionCompleted",
+    payload: { walletId, transactionId: result.transactionId, type: "deposit" },
+    emittedBy: "payment-webhook",
+  });
+  await emit({
+    type: "BalanceChanged",
+    payload: { walletId },
+    emittedBy: "payment-webhook",
+  });
 
   return result;
 }
@@ -301,7 +404,15 @@ export async function initiateWithdrawalHold(
     idempotencyKey,
   });
 
-  await emit({ type: "TransactionCompleted", payload: { walletId, transactionId: result.transactionId, type: "withdrawal_hold" }, emittedBy: "payment-transfer" });
+  await emit({
+    type: "TransactionCompleted",
+    payload: {
+      walletId,
+      transactionId: result.transactionId,
+      type: "withdrawal_hold",
+    },
+    emittedBy: "payment-transfer",
+  });
   return result;
 }
 
@@ -318,7 +429,12 @@ export async function settleWithdrawal(
     type: "withdrawal",
     legs: [
       { walletId, accountType: "pending", direction: "debit", amountCents },
-      { walletId: null, accountType: "platform_clearing", direction: "credit", amountCents },
+      {
+        walletId: null,
+        accountType: "platform_clearing",
+        direction: "credit",
+        amountCents,
+      },
     ],
     initiatedBy: null,
     idempotencyKey,
@@ -333,8 +449,20 @@ export async function settleWithdrawal(
     targetId: result.transactionId,
     metadata: { walletId, amountCents, provider, providerRef },
   });
-  await emit({ type: "TransactionCompleted", payload: { walletId, transactionId: result.transactionId, type: "withdrawal_settled" }, emittedBy: "payment-webhook" });
-  await emit({ type: "BalanceChanged", payload: { walletId }, emittedBy: "payment-webhook" });
+  await emit({
+    type: "TransactionCompleted",
+    payload: {
+      walletId,
+      transactionId: result.transactionId,
+      type: "withdrawal_settled",
+    },
+    emittedBy: "payment-webhook",
+  });
+  await emit({
+    type: "BalanceChanged",
+    payload: { walletId },
+    emittedBy: "payment-webhook",
+  });
 
   return result;
 }
@@ -367,8 +495,20 @@ export async function reverseWithdrawalHold(
     targetId: result.transactionId,
     metadata: { walletId, amountCents, reason },
   });
-  await emit({ type: "TransactionCompleted", payload: { walletId, transactionId: result.transactionId, type: "withdrawal_reversed" }, emittedBy: "payment-webhook" });
-  await emit({ type: "BalanceChanged", payload: { walletId }, emittedBy: "payment-webhook" });
+  await emit({
+    type: "TransactionCompleted",
+    payload: {
+      walletId,
+      transactionId: result.transactionId,
+      type: "withdrawal_reversed",
+    },
+    emittedBy: "payment-webhook",
+  });
+  await emit({
+    type: "BalanceChanged",
+    payload: { walletId },
+    emittedBy: "payment-webhook",
+  });
 
   return result;
 }

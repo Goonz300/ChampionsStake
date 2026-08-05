@@ -22,15 +22,22 @@ interface EventToNotificationRule {
 
 const supabase = getServiceRoleClient();
 
-async function challengeParticipantIds(challengeId: unknown): Promise<string[]> {
+async function challengeParticipantIds(
+  challengeId: unknown,
+): Promise<string[]> {
   if (typeof challengeId !== "string") return [];
-  const { data } = await supabase.from("challenge_participants").select("user_id").eq("challenge_id", challengeId);
+  const { data } = await supabase.from("challenge_participants").select(
+    "user_id",
+  ).eq("challenge_id", challengeId);
   return (data ?? []).map((r) => r.user_id as string);
 }
 
 async function tournamentCreatorId(tournamentId: unknown): Promise<string[]> {
   if (typeof tournamentId !== "string") return [];
-  const { data } = await supabase.from("tournaments").select("created_by").eq("id", tournamentId).maybeSingle();
+  const { data } = await supabase.from("tournaments").select("created_by").eq(
+    "id",
+    tournamentId,
+  ).maybeSingle();
   return data ? [data.created_by as string] : [];
 }
 
@@ -79,7 +86,10 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
   },
 };
 
-async function isCategoryEnabled(userId: string, preferenceKey: string): Promise<boolean> {
+async function isCategoryEnabled(
+  userId: string,
+  preferenceKey: string,
+): Promise<boolean> {
   const { data } = await supabase
     .from("user_preferences")
     .select("notification_preferences")
@@ -87,7 +97,10 @@ async function isCategoryEnabled(userId: string, preferenceKey: string): Promise
     .maybeSingle();
 
   if (!data) return true;
-  const prefs = data.notification_preferences as Record<string, { push?: boolean }>;
+  const prefs = data.notification_preferences as Record<
+    string,
+    { push?: boolean }
+  >;
   return prefs?.[preferenceKey]?.push !== false;
 }
 
@@ -97,7 +110,9 @@ async function isCategoryEnabled(userId: string, preferenceKey: string): Promise
  * schedule or on-demand -- idempotent (marks each event processed_at
  * immediately after handling so a retry never double-notifies).
  */
-export async function processUnhandledEvents(limit = 100): Promise<{ processed: number; notified: number }> {
+export async function processUnhandledEvents(
+  limit = 100,
+): Promise<{ processed: number; notified: number }> {
   const { data: events, error } = await supabase
     .from("domain_events")
     .select("*")
@@ -105,19 +120,25 @@ export async function processUnhandledEvents(limit = 100): Promise<{ processed: 
     .order("created_at", { ascending: true })
     .limit(limit);
 
-  if (error) throw new Error(`Failed to fetch unprocessed events: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to fetch unprocessed events: ${error.message}`);
+  }
 
   let notified = 0;
 
   for (const event of events ?? []) {
     const rule = EVENT_RULES[event.event_type];
     if (!rule) {
-      await supabase.from("domain_events").update({ processed_at: new Date().toISOString() }).eq("id", event.id);
+      await supabase.from("domain_events").update({
+        processed_at: new Date().toISOString(),
+      }).eq("id", event.id);
       continue;
     }
 
     try {
-      const recipients = await rule.resolveRecipients(event.payload as Record<string, unknown>);
+      const recipients = await rule.resolveRecipients(
+        event.payload as Record<string, unknown>,
+      );
       for (const userId of recipients) {
         if (!(await isCategoryEnabled(userId, rule.preferenceKey))) continue;
 
@@ -137,13 +158,18 @@ export async function processUnhandledEvents(limit = 100): Promise<{ processed: 
       });
     }
 
-    await supabase.from("domain_events").update({ processed_at: new Date().toISOString() }).eq("id", event.id);
+    await supabase.from("domain_events").update({
+      processed_at: new Date().toISOString(),
+    }).eq("id", event.id);
   }
 
   return { processed: (events ?? []).length, notified };
 }
 
-export async function markNotificationRead(notificationId: string, userId: string): Promise<void> {
+export async function markNotificationRead(
+  notificationId: string,
+  userId: string,
+): Promise<void> {
   await supabase
     .from("notifications")
     .update({ status: "read", read_at: new Date().toISOString() })

@@ -1,13 +1,19 @@
 // supabase/functions/chat-edit/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { editMessage } from "../_realtime/chat.ts";
 
-const bodySchema = z.object({ messageId: z.string().uuid(), content: z.string().min(1).max(2000) });
+const bodySchema = z.object({
+  messageId: z.string().uuid(),
+  content: z.string().min(1).max(2000),
+});
 
 async function handler(ctx: EdgeContext): Promise<Response> {
   requirePlayer(ctx.profile!);
@@ -16,4 +22,6 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   return successResponse({ edited: true });
 }
 
-Deno.serve(withEdgeFunction({ functionName: "chat-edit", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction({ functionName: "chat-edit", auth: "required" }, handler),
+);

@@ -2,7 +2,7 @@
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { NotFoundError } from "../_shared/errors/index.ts";
-import type { Tournament, Registration } from "./types.ts";
+import type { Registration, Tournament } from "./types.ts";
 
 function toTournament(row: Record<string, unknown>): Tournament {
   return {
@@ -18,23 +18,46 @@ function toTournament(row: Record<string, unknown>): Tournament {
   };
 }
 
-export async function getTournamentOrThrow(tournamentId: string): Promise<Tournament> {
+export async function getTournamentOrThrow(
+  tournamentId: string,
+): Promise<Tournament> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("tournaments").select("*").eq("id", tournamentId).maybeSingle();
-  if (error) throw new Error(`Failed to fetch tournament ${tournamentId}: ${error.message}`);
-  if (!data) throw new NotFoundError(`Tournament ${tournamentId} does not exist.`);
+  const { data, error } = await supabase.from("tournaments").select("*").eq(
+    "id",
+    tournamentId,
+  ).maybeSingle();
+  if (error) {
+    throw new Error(
+      `Failed to fetch tournament ${tournamentId}: ${error.message}`,
+    );
+  }
+  if (!data) {
+    throw new NotFoundError(`Tournament ${tournamentId} does not exist.`);
+  }
   return toTournament(data);
 }
 
-export async function updateTournamentStatus(tournamentId: string, status: string): Promise<void> {
+export async function updateTournamentStatus(
+  tournamentId: string,
+  status: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("tournaments").update({ status }).eq("id", tournamentId);
+  const { error } = await supabase.from("tournaments").update({ status }).eq(
+    "id",
+    tournamentId,
+  );
   // Subject to fn_tournament_state_guard — an illegal transition raises a
   // Postgres error here, surfaced as a generic Error by the caller.
-  if (error) throw new Error(`Failed to update tournament ${tournamentId} status: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Failed to update tournament ${tournamentId} status: ${error.message}`,
+    );
+  }
 }
 
-export async function listRegistrations(tournamentId: string): Promise<Registration[]> {
+export async function listRegistrations(
+  tournamentId: string,
+): Promise<Registration[]> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("tournament_registrations")
@@ -52,7 +75,10 @@ export async function listRegistrations(tournamentId: string): Promise<Registrat
   }));
 }
 
-export async function getRegistration(tournamentId: string, userId: string): Promise<Registration | null> {
+export async function getRegistration(
+  tournamentId: string,
+  userId: string,
+): Promise<Registration | null> {
   const supabase = getServiceRoleClient();
   const { data } = await supabase
     .from("tournament_registrations")
@@ -72,15 +98,26 @@ export async function getRegistration(tournamentId: string, userId: string): Pro
   };
 }
 
-export async function createRound(tournamentId: string, roundNumber: number, name: string) {
+export async function createRound(
+  tournamentId: string,
+  roundNumber: number,
+  name: string,
+) {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("tournament_rounds")
-    .insert({ tournament_id: tournamentId, round_number: roundNumber, name, status: "pending" })
+    .insert({
+      tournament_id: tournamentId,
+      round_number: roundNumber,
+      name,
+      status: "pending",
+    })
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(`Failed to create round ${roundNumber}: ${error?.message}`);
+  if (error || !data) {
+    throw new Error(`Failed to create round ${roundNumber}: ${error?.message}`);
+  }
   return data.id as string;
 }
 
@@ -95,11 +132,18 @@ export async function getCurrentRound(tournamentId: string) {
     .maybeSingle();
 
   if (error) throw new Error(`Failed to fetch current round: ${error.message}`);
-  if (!data) throw new NotFoundError(`No rounds exist yet for tournament ${tournamentId}.`);
+  if (!data) {
+    throw new NotFoundError(
+      `No rounds exist yet for tournament ${tournamentId}.`,
+    );
+  }
   return data;
 }
 
-export async function updateRoundStatus(roundId: string, status: string): Promise<void> {
+export async function updateRoundStatus(
+  roundId: string,
+  status: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
   await supabase.from("tournament_rounds").update({ status }).eq("id", roundId);
 }
@@ -108,9 +152,15 @@ export async function listMatchesForRound(roundId: string) {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("tournament_matches")
-    .select("*, challenges(id, status, winner_submitted_by, creator_id, opponent_id)")
+    .select(
+      "*, challenges(id, status, winner_submitted_by, creator_id, opponent_id)",
+    )
     .eq("round_id", roundId);
 
-  if (error) throw new Error(`Failed to list matches for round ${roundId}: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Failed to list matches for round ${roundId}: ${error.message}`,
+    );
+  }
   return data ?? [];
 }

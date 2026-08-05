@@ -4,7 +4,10 @@
 // tournament-browse/admin-system-health in prior phases.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireModerator } from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
@@ -26,12 +29,25 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   const isAdmin = ctx.profile!.role === "administrator";
 
   if (query.view === "queue") return successResponse(await getQueue());
-  if (query.view === "analytics") return successResponse(await moderatorAnalytics(query.days));
+  if (query.view === "analytics") {
+    return successResponse(await moderatorAnalytics(query.days));
+  }
 
-  if (!query.disputeId) throw new ValidationError("disputeId is required for case/evidence views.");
+  if (!query.disputeId) {
+    throw new ValidationError("disputeId is required for case/evidence views.");
+  }
 
-  if (query.view === "case") return successResponse(await getCaseDetail(query.disputeId, ctx.user!.id, isAdmin));
+  if (query.view === "case") {
+    return successResponse(
+      await getCaseDetail(query.disputeId, ctx.user!.id, isAdmin),
+    );
+  }
   return successResponse(await getEvidenceList(query.disputeId));
 }
 
-Deno.serve(withEdgeFunction({ functionName: "moderator-dashboard", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "moderator-dashboard", auth: "required" },
+    handler,
+  ),
+);

@@ -21,9 +21,15 @@ export interface WebhookProcessResult {
   eventType?: string;
 }
 
-export async function processPaymentWebhook(rawBody: string, signatureHeader: string | null): Promise<WebhookProcessResult> {
+export async function processPaymentWebhook(
+  rawBody: string,
+  signatureHeader: string | null,
+): Promise<WebhookProcessResult> {
   const provider = await getActiveProvider();
-  const verification = await provider.verifyWebhookSignature(rawBody, signatureHeader);
+  const verification = await provider.verifyWebhookSignature(
+    rawBody,
+    signatureHeader,
+  );
 
   if (!verification.valid) {
     throw new ValidationError("Webhook signature verification failed.");
@@ -31,7 +37,9 @@ export async function processPaymentWebhook(rawBody: string, signatureHeader: st
 
   const supabase = getServiceRoleClient();
 
-  const { error: insertError } = await supabase.from("processed_payment_webhook_events").insert({
+  const { error: insertError } = await supabase.from(
+    "processed_payment_webhook_events",
+  ).insert({
     provider: provider.name,
     provider_event_id: verification.eventId,
     event_type: verification.eventType,
@@ -55,7 +63,9 @@ export async function processPaymentWebhook(rawBody: string, signatureHeader: st
     metadata: { provider: provider.name, eventType: verification.eventType },
   });
 
-  const payload = verification.payload as { data?: { reference?: string; status?: string } };
+  const payload = verification.payload as {
+    data?: { reference?: string; status?: string };
+  };
   const reference = payload.data?.reference;
 
   if (!reference) {
@@ -66,7 +76,10 @@ export async function processPaymentWebhook(rawBody: string, signatureHeader: st
     await verifyAndCompleteDeposit(reference);
   } else if (verification.eventType === "transfer.success") {
     await finalizeWithdrawal(reference, "success");
-  } else if (verification.eventType === "transfer.failed" || verification.eventType === "transfer.reversed") {
+  } else if (
+    verification.eventType === "transfer.failed" ||
+    verification.eventType === "transfer.reversed"
+  ) {
     await finalizeWithdrawal(reference, "failed");
   } else {
     return { status: "ignored", eventType: verification.eventType };

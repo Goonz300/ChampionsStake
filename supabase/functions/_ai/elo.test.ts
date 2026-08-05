@@ -1,7 +1,11 @@
 // supabase/functions/_ai/elo.test.ts
 
-import { assertEquals, assertAlmostEquals } from "jsr:@std/assert@1";
-import { expectedScore, computeEloUpdate, computeDisputeLossAdjustment } from "./elo.ts";
+import { assertAlmostEquals, assertEquals } from "jsr:@std/assert@1";
+import {
+  computeDisputeLossAdjustment,
+  computeEloUpdate,
+  expectedScore,
+} from "./elo.ts";
 
 Deno.test("expectedScore is 0.5 for equal ratings", () => {
   assertEquals(expectedScore(1000, 1000), 0.5);

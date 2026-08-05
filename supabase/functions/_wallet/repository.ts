@@ -18,15 +18,26 @@ function toWalletBalances(row: Record<string, unknown>): WalletBalances {
   };
 }
 
-export async function findWalletByUserId(userId: string): Promise<WalletBalances | null> {
+export async function findWalletByUserId(
+  userId: string,
+): Promise<WalletBalances | null> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle();
+  const { data, error } = await supabase.from("wallets").select("*").eq(
+    "user_id",
+    userId,
+  ).maybeSingle();
 
-  if (error) throw new Error(`Failed to look up wallet for user ${userId}: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Failed to look up wallet for user ${userId}: ${error.message}`,
+    );
+  }
   return data ? toWalletBalances(data) : null;
 }
 
-export async function getWalletByUserIdOrThrow(userId: string): Promise<WalletBalances> {
+export async function getWalletByUserIdOrThrow(
+  userId: string,
+): Promise<WalletBalances> {
   const wallet = await findWalletByUserId(userId);
   if (!wallet) throw new NotFoundError(`No wallet exists for user ${userId}.`);
   return wallet;
@@ -34,9 +45,14 @@ export async function getWalletByUserIdOrThrow(userId: string): Promise<WalletBa
 
 export async function getWalletById(walletId: string): Promise<WalletBalances> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("wallets").select("*").eq("id", walletId).maybeSingle();
+  const { data, error } = await supabase.from("wallets").select("*").eq(
+    "id",
+    walletId,
+  ).maybeSingle();
 
-  if (error) throw new Error(`Failed to look up wallet ${walletId}: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to look up wallet ${walletId}: ${error.message}`);
+  }
   if (!data) throw new NotFoundError(`Wallet ${walletId} does not exist.`);
   return toWalletBalances(data);
 }
@@ -67,9 +83,15 @@ export async function listTransactions(filter: TransactionHistoryFilter) {
     .select("wallet_transaction_id")
     .eq("wallet_id", filter.walletId);
 
-  if (ledgerError) throw new Error(`Failed to look up ledger entries: ${ledgerError.message}`);
+  if (ledgerError) {
+    throw new Error(`Failed to look up ledger entries: ${ledgerError.message}`);
+  }
 
-  const transactionIds = [...new Set((ledgerRows ?? []).map((r) => r.wallet_transaction_id as string))];
+  const transactionIds = [
+    ...new Set(
+      (ledgerRows ?? []).map((r) => r.wallet_transaction_id as string),
+    ),
+  ];
   if (transactionIds.length === 0) return [];
 
   let query = supabase
@@ -98,8 +120,14 @@ export async function getTransactionById(transactionId: string) {
     .eq("id", transactionId)
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to fetch transaction ${transactionId}: ${error.message}`);
-  if (!data) throw new NotFoundError(`Transaction ${transactionId} does not exist.`);
+  if (error) {
+    throw new Error(
+      `Failed to fetch transaction ${transactionId}: ${error.message}`,
+    );
+  }
+  if (!data) {
+    throw new NotFoundError(`Transaction ${transactionId} does not exist.`);
+  }
   return data;
 }
 
@@ -108,10 +136,14 @@ export async function getTransactionById(transactionId: string) {
  * this phase's explicit "100,000+ wallets" performance requirement. */
 export async function listWalletsPage(limit: number, afterId: string | null) {
   const supabase = getServiceRoleClient();
-  let query = supabase.from("wallets").select("*").order("id", { ascending: true }).limit(limit);
+  let query = supabase.from("wallets").select("*").order("id", {
+    ascending: true,
+  }).limit(limit);
   if (afterId) query = query.gt("id", afterId);
 
   const { data, error } = await query;
-  if (error) throw new Error(`Failed to page through wallets: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to page through wallets: ${error.message}`);
+  }
   return (data ?? []).map(toWalletBalances);
 }

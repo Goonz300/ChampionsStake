@@ -1,7 +1,10 @@
 // supabase/functions/challenge-browse/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { paginatedResponse } from "../_shared/response/index.ts";
@@ -13,7 +16,14 @@ const querySchema = paginationQuerySchema.extend({
   regionCode: z.string().optional(),
   minStakeCents: z.coerce.number().int().positive().optional(),
   maxStakeCents: z.coerce.number().int().positive().optional(),
-  sort: z.enum(["trending", "newest", "highest_prize", "region", "friends", "recommended"]).default("newest"),
+  sort: z.enum([
+    "trending",
+    "newest",
+    "highest_prize",
+    "region",
+    "friends",
+    "recommended",
+  ]).default("newest"),
 });
 
 async function handler(ctx: EdgeContext): Promise<Response> {
@@ -32,10 +42,10 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     limit: query.limit,
   });
 
-  const nextCursor =
-    results.length === query.limit
-      ? ((results[results.length - 1] as { created_at?: string } | undefined)?.created_at ?? null)
-      : null;
+  const nextCursor = results.length === query.limit
+    ? ((results[results.length - 1] as { created_at?: string } | undefined)
+      ?.created_at ?? null)
+    : null;
 
   return paginatedResponse(results, { next_cursor: nextCursor });
 }
@@ -43,5 +53,8 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 Deno.serve(
   // Public/browse endpoint — visitors and authenticated players alike may
   // browse (Business Rules: public challenges are readable by anyone).
-  withEdgeFunction({ functionName: "challenge-browse", auth: "optional" }, handler),
+  withEdgeFunction(
+    { functionName: "challenge-browse", auth: "optional" },
+    handler,
+  ),
 );

@@ -12,7 +12,8 @@ import { getServiceRoleClient } from "../_shared/database/client.ts";
 
 export async function listFeatureFlags() {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("feature_flags").select("*").order("key", { ascending: true });
+  const { data, error } = await supabase.from("feature_flags").select("*")
+    .order("key", { ascending: true });
   if (error) throw new Error(`Failed to list feature flags: ${error.message}`);
   return data ?? [];
 }
@@ -26,6 +27,8 @@ export async function toggleFeatureFlag(key: string, enabled: boolean) {
     .select("*")
     .maybeSingle();
 
-  if (error) throw new Error(`Failed to update feature flag ${key}: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to update feature flag ${key}: ${error.message}`);
+  }
   return data;
 }

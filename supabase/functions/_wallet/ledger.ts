@@ -8,7 +8,7 @@
 // bypass.
 
 import { withTransaction } from "../_shared/transactions/index.ts";
-import { WalletError, ConflictError } from "../_shared/errors/index.ts";
+import { ConflictError, WalletError } from "../_shared/errors/index.ts";
 import type { TransferRequest, TransferResult } from "./types.ts";
 
 /**
@@ -29,23 +29,33 @@ import type { TransferRequest, TransferResult } from "./types.ts";
  * just the "primary" one.
  */
 function resolvePrimaryWalletId(request: TransferRequest): string {
-  const debitWallet = request.legs.find((l) => l.direction === "debit" && l.walletId !== null)?.walletId;
+  const debitWallet = request.legs.find((l) =>
+    l.direction === "debit" && l.walletId !== null
+  )?.walletId;
   if (debitWallet) return debitWallet;
 
   const anyWallet = request.legs.find((l) => l.walletId !== null)?.walletId;
   if (!anyWallet) {
-    throw new WalletError("A transfer must touch at least one real wallet (not only platform accounts).");
+    throw new WalletError(
+      "A transfer must touch at least one real wallet (not only platform accounts).",
+    );
   }
   return anyWallet;
 }
 
-export async function postBalancedEntries(request: TransferRequest): Promise<TransferResult> {
+export async function postBalancedEntries(
+  request: TransferRequest,
+): Promise<TransferResult> {
   if (request.legs.length === 0) {
     throw new WalletError("A transfer must include at least one ledger leg.");
   }
 
-  const netDebits = request.legs.filter((l) => l.direction === "debit").reduce((s, l) => s + l.amountCents, 0);
-  const netCredits = request.legs.filter((l) => l.direction === "credit").reduce((s, l) => s + l.amountCents, 0);
+  const netDebits = request.legs.filter((l) => l.direction === "debit").reduce(
+    (s, l) => s + l.amountCents,
+    0,
+  );
+  const netCredits = request.legs.filter((l) => l.direction === "credit")
+    .reduce((s, l) => s + l.amountCents, 0);
 
   if (netDebits !== netCredits) {
     throw new WalletError(
@@ -61,7 +71,13 @@ export async function postBalancedEntries(request: TransferRequest): Promise<Tra
     // prevent a lock-ordering deadlock between two concurrent transfers
     // touching the same two wallets in opposite order — this phase's
     // explicit "double spending / race conditions" protection requirement.
-    const walletIds = [...new Set(request.legs.map((l) => l.walletId).filter((id): id is string => id !== null))].sort();
+    const walletIds = [
+      ...new Set(
+        request.legs.map((l) => l.walletId).filter((id): id is string =>
+          id !== null
+        ),
+      ),
+    ].sort();
 
     for (const walletId of walletIds) {
       await sql`select id from wallets where id = ${walletId} for update`;
@@ -97,8 +113,16 @@ export async function postBalancedEntries(request: TransferRequest): Promise<Tra
         'completed',
         ${transactionAmount},
         ${request.initiatedBy},
-        ${request.relatedEntity?.table === "challenges" ? request.relatedEntity.id : null},
-        ${request.relatedEntity?.table === "tournaments" ? request.relatedEntity.id : null},
+        ${
+      request.relatedEntity?.table === "challenges"
+        ? request.relatedEntity.id
+        : null
+    },
+        ${
+      request.relatedEntity?.table === "tournaments"
+        ? request.relatedEntity.id
+        : null
+    },
         ${request.releaseReason ?? null},
         ${request.idempotencyKey ?? null}
       )
@@ -112,6 +136,9 @@ export async function postBalancedEntries(request: TransferRequest): Promise<Tra
       `;
     }
 
-    return { transactionId: txRow.id, status: txRow.status as TransferResult["status"] };
+    return {
+      transactionId: txRow.id,
+      status: txRow.status as TransferResult["status"],
+    };
   });
 }

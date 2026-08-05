@@ -65,7 +65,10 @@ export function computeEloUpdate(
  */
 const DISPUTE_LOSS_MULTIPLIER = 1.5;
 
-export function computeDisputeLossAdjustment(currentRating: number, normalLossDelta: number): number {
+export function computeDisputeLossAdjustment(
+  currentRating: number,
+  normalLossDelta: number,
+): number {
   const amplifiedDelta = normalLossDelta * DISPUTE_LOSS_MULTIPLIER;
   return Math.max(MIN_RATING, currentRating + amplifiedDelta) - currentRating;
 }

@@ -43,7 +43,9 @@ export async function recordAudit(entry: AuditEntryInput): Promise<void> {
     ...(entry.before !== undefined ? { before: entry.before } : {}),
     ...(entry.after !== undefined ? { after: entry.after } : {}),
     ...(entry.ipAddress ? { ip_address: entry.ipAddress } : {}),
-    ...(entry.deviceFingerprint ? { device_fingerprint: entry.deviceFingerprint } : {}),
+    ...(entry.deviceFingerprint
+      ? { device_fingerprint: entry.deviceFingerprint }
+      : {}),
     ...(entry.metadata ?? {}),
   };
 
@@ -62,17 +64,22 @@ export async function recordAudit(entry: AuditEntryInput): Promise<void> {
     // describing — log loudly (so it's visible in monitoring) and continue.
     // The alternative (throwing) would mean a broken audit log could block
     // real user actions, which is the wrong tradeoff for a logging concern.
-    logger.error("Failed to write audit log entry", { error: error.message, action: entry.action });
+    logger.error("Failed to write audit log entry", {
+      error: error.message,
+      action: entry.action,
+    });
   }
 }
 
 /** Convenience helper for extracting IP/device info from a request, so
  * callers don't have to know the header names. */
-export function extractRequestContext(request: Request): { ipAddress: string | null; userAgent: string | null } {
+export function extractRequestContext(
+  request: Request,
+): { ipAddress: string | null; userAgent: string | null } {
   const ipAddress =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    null;
+      request.headers.get("x-real-ip") ??
+      null;
   const userAgent = request.headers.get("user-agent");
   return { ipAddress, userAgent };
 }

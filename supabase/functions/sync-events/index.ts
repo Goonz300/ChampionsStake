@@ -1,12 +1,15 @@
 // supabase/functions/sync-events/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { isoDateSchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
-import { syncSince, syncChallengeSince } from "../_realtime/sync.ts";
+import { syncChallengeSince, syncSince } from "../_realtime/sync.ts";
 
 const querySchema = z.object({
   since: isoDateSchema,
@@ -19,7 +22,11 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   const query = validateQuery(querySchema, url);
 
   if (query.challengeId) {
-    const messages = await syncChallengeSince(query.challengeId, ctx.user!.id, query.since);
+    const messages = await syncChallengeSince(
+      query.challengeId,
+      ctx.user!.id,
+      query.since,
+    );
     return successResponse({ messages });
   }
 
@@ -27,4 +34,6 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   return successResponse(result);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "sync-events", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction({ functionName: "sync-events", auth: "required" }, handler),
+);

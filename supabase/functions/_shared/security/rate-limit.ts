@@ -44,9 +44,12 @@ class UpstashBackend implements RateLimitBackend {
     const count = Number(incrJson.result ?? 0);
 
     if (count === 1) {
-      await fetch(`${this.url}/expire/${encodeURIComponent(key)}/${windowSeconds}`, {
-        headers: { Authorization: `Bearer ${this.token}` },
-      });
+      await fetch(
+        `${this.url}/expire/${encodeURIComponent(key)}/${windowSeconds}`,
+        {
+          headers: { Authorization: `Bearer ${this.token}` },
+        },
+      );
     }
 
     return count;
@@ -90,9 +93,13 @@ function getBackend(): RateLimitBackend {
   return new PostgresFallbackBackend();
 }
 
-export async function enforceRateLimit(options: RateLimitOptions): Promise<void> {
-  const windowSeconds = options.windowSeconds ?? config.rateLimit.defaultWindowSeconds;
-  const maxRequests = options.maxRequests ?? config.rateLimit.defaultMaxRequests;
+export async function enforceRateLimit(
+  options: RateLimitOptions,
+): Promise<void> {
+  const windowSeconds = options.windowSeconds ??
+    config.rateLimit.defaultWindowSeconds;
+  const maxRequests = options.maxRequests ??
+    config.rateLimit.defaultMaxRequests;
 
   const backend = getBackend();
   const count = await backend.increment(options.key, windowSeconds);

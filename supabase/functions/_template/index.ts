@@ -12,8 +12,11 @@
 // audit, an emitted event, and a standard response, all in one place.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
@@ -23,7 +26,7 @@ import {
   failIdempotentRequest,
 } from "../_shared/idempotency/index.ts";
 import { withTransaction } from "../_shared/transactions/index.ts";
-import { recordAudit, extractRequestContext } from "../_shared/audit/index.ts";
+import { extractRequestContext, recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { idempotencyKeyHeaderSchema } from "../_shared/validation/schemas.ts";
 
@@ -53,7 +56,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   );
 
   if (idempotency.kind === "replayed") {
-    return successResponse(idempotency.response.body, { status: idempotency.response.statusCode });
+    return successResponse(idempotency.response.body, {
+      status: idempotency.response.statusCode,
+    });
   }
 
   try {
@@ -102,7 +107,11 @@ Deno.serve(
     {
       functionName: "_template",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `_template:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 30 }),
+      rateLimit: (ctx) => ({
+        key: `_template:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 30,
+      }),
     },
     handler,
   ),

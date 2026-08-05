@@ -16,9 +16,13 @@ let cachedServiceRoleClient: SupabaseClient | null = null;
  */
 export function getServiceRoleClient(): SupabaseClient {
   if (!cachedServiceRoleClient) {
-    cachedServiceRoleClient = createClient(config.supabase.url, config.supabase.serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    cachedServiceRoleClient = createClient(
+      config.supabase.url,
+      config.supabase.serviceRoleKey,
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+      },
+    );
   }
   return cachedServiceRoleClient;
 }

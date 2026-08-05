@@ -16,13 +16,23 @@
 // phase to make deliberately, not something to assume here.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
-import { idempotencyKeyHeaderSchema, moneyAmountCentsSchema } from "../_shared/validation/schemas.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
+import {
+  idempotencyKeyHeaderSchema,
+  moneyAmountCentsSchema,
+} from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
-import { beginIdempotentRequest, completeIdempotentRequest, failIdempotentRequest } from "../_shared/idempotency/index.ts";
-import { walletToWallet, platformToWallet } from "../_wallet/transfer.ts";
+import {
+  beginIdempotentRequest,
+  completeIdempotentRequest,
+  failIdempotentRequest,
+} from "../_shared/idempotency/index.ts";
+import { platformToWallet, walletToWallet } from "../_wallet/transfer.ts";
 
 const bodySchema = z.discriminatedUnion("kind", [
   z.object({
@@ -42,7 +52,9 @@ const bodySchema = z.discriminatedUnion("kind", [
 async function handler(ctx: EdgeContext): Promise<Response> {
   requireAdministrator(ctx.profile!);
 
-  const idempotencyKey = idempotencyKeyHeaderSchema.parse(ctx.request.headers.get("Idempotency-Key"));
+  const idempotencyKey = idempotencyKeyHeaderSchema.parse(
+    ctx.request.headers.get("Idempotency-Key"),
+  );
   const body = validateBody(bodySchema, await parseJsonBody(ctx.request));
 
   const idempotency = await beginIdempotentRequest<Record<string, unknown>>(
@@ -51,16 +63,32 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     body,
   );
   if (idempotency.kind === "replayed") {
-    return successResponse(idempotency.response.body, { status: idempotency.response.statusCode });
+    return successResponse(idempotency.response.body, {
+      status: idempotency.response.statusCode,
+    });
   }
 
   try {
-    const result =
-      body.kind === "wallet_to_wallet"
-        ? await walletToWallet(body.fromWalletId, body.toWalletId, body.amountCents, ctx.user!.id, idempotencyKey)
-        : await platformToWallet(body.toWalletId, body.amountCents, body.transactionType, ctx.user!.id, idempotencyKey);
+    const result = body.kind === "wallet_to_wallet"
+      ? await walletToWallet(
+        body.fromWalletId,
+        body.toWalletId,
+        body.amountCents,
+        ctx.user!.id,
+        idempotencyKey,
+      )
+      : await platformToWallet(
+        body.toWalletId,
+        body.amountCents,
+        body.transactionType,
+        ctx.user!.id,
+        idempotencyKey,
+      );
 
-    const responseBody = { transaction_id: result.transactionId, status: result.status };
+    const responseBody = {
+      transaction_id: result.transactionId,
+      status: result.status,
+    };
     await completeIdempotentRequest(idempotencyKey, 201, responseBody);
     return successResponse(responseBody, { status: 201 });
   } catch (err) {
@@ -74,7 +102,11 @@ Deno.serve(
     {
       functionName: "wallet-transfer",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `wallet-transfer:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 20 }),
+      rateLimit: (ctx) => ({
+        key: `wallet-transfer:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
     },
     handler,
   ),

@@ -1,7 +1,12 @@
 // supabase/functions/_shared/permissions/index.ts
 
 import { AuthorizationError } from "../errors/index.ts";
-import { isModerator, isAdministrator, isSupportStaff, isVerified } from "../auth/roles.ts";
+import {
+  isAdministrator,
+  isModerator,
+  isSupportStaff,
+  isVerified,
+} from "../auth/roles.ts";
 import type { UserProfile } from "../auth/session.ts";
 import { assertAccountActive } from "../auth/session.ts";
 
@@ -20,28 +25,36 @@ export function requirePlayer(profile: UserProfile): void {
 export function requireVerifiedPlayer(profile: UserProfile): void {
   assertAccountActive(profile);
   if (!isVerified(profile)) {
-    throw new AuthorizationError("This action requires a verified (KYC-complete) account.");
+    throw new AuthorizationError(
+      "This action requires a verified (KYC-complete) account.",
+    );
   }
 }
 
 export function requireModerator(profile: UserProfile): void {
   assertAccountActive(profile);
   if (!isModerator(profile)) {
-    throw new AuthorizationError("This action requires moderator or administrator privileges.");
+    throw new AuthorizationError(
+      "This action requires moderator or administrator privileges.",
+    );
   }
 }
 
 export function requireAdministrator(profile: UserProfile): void {
   assertAccountActive(profile);
   if (!isAdministrator(profile)) {
-    throw new AuthorizationError("This action requires administrator privileges.");
+    throw new AuthorizationError(
+      "This action requires administrator privileges.",
+    );
   }
 }
 
 export function requireSupportStaff(profile: UserProfile): void {
   assertAccountActive(profile);
   if (!isSupportStaff(profile)) {
-    throw new AuthorizationError("This action requires support or administrator privileges.");
+    throw new AuthorizationError(
+      "This action requires support or administrator privileges.",
+    );
   }
 }
 

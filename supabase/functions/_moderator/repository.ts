@@ -26,8 +26,13 @@ function toDispute(row: Record<string, unknown>): Dispute {
 
 export async function getDisputeOrThrow(disputeId: string): Promise<Dispute> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("disputes").select("*").eq("id", disputeId).maybeSingle();
-  if (error) throw new Error(`Failed to fetch dispute ${disputeId}: ${error.message}`);
+  const { data, error } = await supabase.from("disputes").select("*").eq(
+    "id",
+    disputeId,
+  ).maybeSingle();
+  if (error) {
+    throw new Error(`Failed to fetch dispute ${disputeId}: ${error.message}`);
+  }
   if (!data) throw new NotFoundError(`Dispute ${disputeId} does not exist.`);
   return toDispute(data);
 }
@@ -35,14 +40,28 @@ export async function getDisputeOrThrow(disputeId: string): Promise<Dispute> {
 export async function getQueue(priorityOrder = true) {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase.from("v_moderator_queue").select("*");
-  if (error) throw new Error(`Failed to fetch moderator queue: ${error.message}`);
-  return priorityOrder ? data ?? [] : [...(data ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  if (error) {
+    throw new Error(`Failed to fetch moderator queue: ${error.message}`);
+  }
+  return priorityOrder
+    ? data ?? []
+    : [...(data ?? [])].sort((a, b) =>
+      a.created_at.localeCompare(b.created_at)
+    );
 }
 
-export async function updateDispute(disputeId: string, fields: Record<string, unknown>): Promise<void> {
+export async function updateDispute(
+  disputeId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("disputes").update(fields).eq("id", disputeId);
-  if (error) throw new Error(`Failed to update dispute ${disputeId}: ${error.message}`);
+  const { error } = await supabase.from("disputes").update(fields).eq(
+    "id",
+    disputeId,
+  );
+  if (error) {
+    throw new Error(`Failed to update dispute ${disputeId}: ${error.message}`);
+  }
 }
 
 /** Mirrors DB-002's is_dispute_participant(uuid) SQL function via the same
@@ -50,9 +69,14 @@ export async function updateDispute(disputeId: string, fields: Record<string, un
  * be called meaningfully from a service-role context where there is no
  * "current user" session -- this is the same query shape, not new
  * business logic, just usable with an explicit userId parameter. */
-export async function isDisputeParticipant(disputeId: string, userId: string): Promise<boolean> {
+export async function isDisputeParticipant(
+  disputeId: string,
+  userId: string,
+): Promise<boolean> {
   const supabase = getServiceRoleClient();
-  const { data: dispute } = await supabase.from("disputes").select("challenge_id").eq("id", disputeId).maybeSingle();
+  const { data: dispute } = await supabase.from("disputes").select(
+    "challenge_id",
+  ).eq("id", disputeId).maybeSingle();
   if (!dispute) return false;
 
   const { data } = await supabase

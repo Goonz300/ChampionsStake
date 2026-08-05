@@ -1,15 +1,15 @@
 // Run with: deno test supabase/functions/_shared/errors/errors.test.ts
 import { assertEquals, assertInstanceOf } from "jsr:@std/assert@1";
 import {
-  ValidationError,
   AuthenticationError,
   AuthorizationError,
-  NotFoundError,
   ConflictError,
-  RateLimitError,
-  InternalServerError,
-  toEdgeFunctionError,
   EdgeFunctionError,
+  InternalServerError,
+  NotFoundError,
+  RateLimitError,
+  toEdgeFunctionError,
+  ValidationError,
 } from "./index.ts";
 
 Deno.test("ValidationError has code VALIDATION_ERROR and status 400", () => {
@@ -62,7 +62,9 @@ Deno.test("toResponseBody produces the standard error envelope shape", () => {
   const body = err.toResponseBody();
   assertEquals(body.error.code, "VALIDATION_ERROR");
   assertEquals(body.error.message, "bad field");
-  assertEquals((body.error as { details?: unknown }).details, { field: "email" });
+  assertEquals((body.error as { details?: unknown }).details, {
+    field: "email",
+  });
 });
 
 Deno.test("every declared error subclasses EdgeFunctionError", () => {

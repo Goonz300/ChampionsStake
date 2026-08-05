@@ -1,7 +1,10 @@
 // supabase/functions/admin-audit/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
@@ -27,4 +30,6 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   return successResponse(results);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-audit", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction({ functionName: "admin-audit", auth: "required" }, handler),
+);

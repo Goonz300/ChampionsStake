@@ -6,11 +6,18 @@
 // Deno.serve dispatches on request.method.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
-import { ConflictError, NotFoundError, ValidationError } from "../_shared/errors/index.ts";
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../_shared/errors/index.ts";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { administrativeAdjustment } from "../_wallet/transfer.ts";
@@ -44,7 +51,9 @@ async function handlePropose(ctx: EdgeContext): Promise<Response> {
     .select("id, status")
     .single();
 
-  if (error || !data) throw new Error(`Failed to create adjustment request: ${error?.message}`);
+  if (error || !data) {
+    throw new Error(`Failed to create adjustment request: ${error?.message}`);
+  }
 
   await recordAudit({
     actorId: ctx.user!.id,
@@ -56,7 +65,9 @@ async function handlePropose(ctx: EdgeContext): Promise<Response> {
     metadata: body,
   });
 
-  return successResponse({ request_id: data.id, status: data.status }, { status: 202 });
+  return successResponse({ request_id: data.id, status: data.status }, {
+    status: 202,
+  });
 }
 
 async function handleApprove(ctx: EdgeContext): Promise<Response> {
@@ -76,7 +87,9 @@ async function handleApprove(ctx: EdgeContext): Promise<Response> {
   }
 
   if (pending.status !== "pending_approval") {
-    throw new ConflictError(`Adjustment request ${body.requestId} is already "${pending.status}".`);
+    throw new ConflictError(
+      `Adjustment request ${body.requestId} is already "${pending.status}".`,
+    );
   }
 
   if (pending.proposed_by === ctx.user!.id) {
@@ -86,8 +99,12 @@ async function handleApprove(ctx: EdgeContext): Promise<Response> {
   }
 
   if (new Date(pending.expires_at) < new Date()) {
-    await supabase.from("wallet_adjustment_requests").update({ status: "expired" }).eq("id", pending.id);
-    throw new ConflictError(`Adjustment request ${body.requestId} has expired. Propose a new one.`);
+    await supabase.from("wallet_adjustment_requests").update({
+      status: "expired",
+    }).eq("id", pending.id);
+    throw new ConflictError(
+      `Adjustment request ${body.requestId} has expired. Propose a new one.`,
+    );
   }
 
   const result = await administrativeAdjustment(
@@ -109,14 +126,20 @@ async function handleApprove(ctx: EdgeContext): Promise<Response> {
     })
     .eq("id", pending.id);
 
-  return successResponse({ request_id: pending.id, status: "approved", transaction_id: result.transactionId });
+  return successResponse({
+    request_id: pending.id,
+    status: "approved",
+    transaction_id: result.transactionId,
+  });
 }
 
 async function handler(ctx: EdgeContext): Promise<Response> {
   if (ctx.request.method === "POST") return handlePropose(ctx);
   if (ctx.request.method === "PATCH") return handleApprove(ctx);
 
-  throw new ValidationError(`Unsupported method ${ctx.request.method}. Use POST to propose or PATCH to approve.`);
+  throw new ValidationError(
+    `Unsupported method ${ctx.request.method}. Use POST to propose or PATCH to approve.`,
+  );
 }
 
 Deno.serve(

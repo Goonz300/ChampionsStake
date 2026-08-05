@@ -21,7 +21,10 @@ export async function autoAssign(disputeId: string): Promise<string> {
     throw new ConflictError(`Dispute ${disputeId} is already assigned.`);
   }
 
-  const { data: moderators } = await supabase.from("profiles").select("id").eq("role", "moderator").eq("status", "active");
+  const { data: moderators } = await supabase.from("profiles").select("id").eq(
+    "role",
+    "moderator",
+  ).eq("status", "active");
   if (!moderators || moderators.length === 0) {
     throw new ConflictError("No active moderators available for assignment.");
   }
@@ -35,7 +38,10 @@ export async function autoAssign(disputeId: string): Promise<string> {
   const workload = new Map<string, number>(moderators.map((m) => [m.id, 0]));
   for (const row of openCounts ?? []) {
     if (row.assigned_moderator_id) {
-      workload.set(row.assigned_moderator_id, (workload.get(row.assigned_moderator_id) ?? 0) + 1);
+      workload.set(
+        row.assigned_moderator_id,
+        (workload.get(row.assigned_moderator_id) ?? 0) + 1,
+      );
     }
   }
 
@@ -45,15 +51,29 @@ export async function autoAssign(disputeId: string): Promise<string> {
 }
 
 /** Manual assignment / reassignment. actorId is null for the automatic path above. */
-export async function assignDispute(disputeId: string, moderatorId: string, actorId: string | null): Promise<void> {
+export async function assignDispute(
+  disputeId: string,
+  moderatorId: string,
+  actorId: string | null,
+): Promise<void> {
   const supabase = getServiceRoleClient();
 
-  const { data: moderator } = await supabase.from("profiles").select("role, status").eq("id", moderatorId).maybeSingle();
-  if (!moderator || (moderator.role !== "moderator" && moderator.role !== "administrator") || moderator.status !== "active") {
-    throw new AuthorizationError(`User ${moderatorId} is not an active moderator or administrator.`);
+  const { data: moderator } = await supabase.from("profiles").select(
+    "role, status",
+  ).eq("id", moderatorId).maybeSingle();
+  if (
+    !moderator ||
+    (moderator.role !== "moderator" && moderator.role !== "administrator") ||
+    moderator.status !== "active"
+  ) {
+    throw new AuthorizationError(
+      `User ${moderatorId} is not an active moderator or administrator.`,
+    );
   }
 
-  const { error } = await supabase.from("disputes").update({ assigned_moderator_id: moderatorId }).eq("id", disputeId);
+  const { error } = await supabase.from("disputes").update({
+    assigned_moderator_id: moderatorId,
+  }).eq("id", disputeId);
   if (error) throw new Error(`Failed to assign dispute: ${error.message}`);
 
   await recordAudit({
@@ -66,13 +86,22 @@ export async function assignDispute(disputeId: string, moderatorId: string, acto
     metadata: { moderator_id: moderatorId },
   });
 
-  await emit({ type: "DisputeOpened", payload: { disputeId, event: "ModeratorAssigned", moderatorId }, emittedBy: "moderator-assign" });
+  await emit({
+    type: "DisputeOpened",
+    payload: { disputeId, event: "ModeratorAssigned", moderatorId },
+    emittedBy: "moderator-assign",
+  });
 }
 
-export async function claimDispute(disputeId: string, moderatorId: string): Promise<void> {
+export async function claimDispute(
+  disputeId: string,
+  moderatorId: string,
+): Promise<void> {
   const dispute = await getDisputeOrThrow(disputeId);
   if (dispute.assignedModeratorId) {
-    throw new ConflictError(`Dispute ${disputeId} is already assigned to another moderator.`);
+    throw new ConflictError(
+      `Dispute ${disputeId} is already assigned to another moderator.`,
+    );
   }
   await assignDispute(disputeId, moderatorId, moderatorId);
 }
@@ -83,7 +112,10 @@ export async function setPriority(
   actorId: string,
 ): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("disputes").update({ priority }).eq("id", disputeId);
+  const { error } = await supabase.from("disputes").update({ priority }).eq(
+    "id",
+    disputeId,
+  );
   if (error) throw new Error(`Failed to set priority: ${error.message}`);
 
   await recordAudit({
@@ -100,11 +132,19 @@ export async function setPriority(
 /** Escalation: reassigns to an administrator and bumps priority to urgent
  * -- reuses assignDispute/setPriority rather than introducing a separate
  * escalation state machine. */
-export async function escalateDispute(disputeId: string, adminId: string, moderatorId: string, reason: string): Promise<void> {
+export async function escalateDispute(
+  disputeId: string,
+  adminId: string,
+  moderatorId: string,
+  reason: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { data: admin } = await supabase.from("profiles").select("role, status").eq("id", adminId).maybeSingle();
+  const { data: admin } = await supabase.from("profiles").select("role, status")
+    .eq("id", adminId).maybeSingle();
   if (!admin || admin.role !== "administrator" || admin.status !== "active") {
-    throw new AuthorizationError(`User ${adminId} is not an active administrator.`);
+    throw new AuthorizationError(
+      `User ${adminId} is not an active administrator.`,
+    );
   }
 
   await assignDispute(disputeId, adminId, moderatorId);
@@ -120,5 +160,9 @@ export async function escalateDispute(disputeId: string, adminId: string, modera
     metadata: { escalated_to: adminId, reason },
   });
 
-  await emit({ type: "DisputeOpened", payload: { disputeId, event: "DisputeEscalated", adminId }, emittedBy: "moderator-escalate" });
+  await emit({
+    type: "DisputeOpened",
+    payload: { disputeId, event: "DisputeEscalated", adminId },
+    emittedBy: "moderator-escalate",
+  });
 }

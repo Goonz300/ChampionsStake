@@ -1,32 +1,55 @@
 // supabase/functions/moderator-decision/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireModerator } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
 import {
-  approveWinner,
   approveOpponent,
+  approveWinner,
   dismissInvalidDispute,
-  voidMatch,
+  reopenCase,
   requestMoreEvidence,
   returnToPlayers,
-  reopenCase,
+  voidMatch,
 } from "../_moderator/decisions.ts";
 
 const bodySchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("approve_winner"), disputeId: z.string().uuid(), rationale: z.string().min(10) }),
-  z.object({ action: z.literal("approve_opponent"), disputeId: z.string().uuid(), rationale: z.string().min(10) }),
-  z.object({ action: z.literal("dismiss_invalid"), disputeId: z.string().uuid(), rationale: z.string().min(10) }),
-  z.object({ action: z.literal("void_match"), disputeId: z.string().uuid(), rationale: z.string().min(10) }),
+  z.object({
+    action: z.literal("approve_winner"),
+    disputeId: z.string().uuid(),
+    rationale: z.string().min(10),
+  }),
+  z.object({
+    action: z.literal("approve_opponent"),
+    disputeId: z.string().uuid(),
+    rationale: z.string().min(10),
+  }),
+  z.object({
+    action: z.literal("dismiss_invalid"),
+    disputeId: z.string().uuid(),
+    rationale: z.string().min(10),
+  }),
+  z.object({
+    action: z.literal("void_match"),
+    disputeId: z.string().uuid(),
+    rationale: z.string().min(10),
+  }),
   z.object({
     action: z.literal("request_more_evidence"),
     disputeId: z.string().uuid(),
     extensionHours: z.number().int().positive().optional(),
   }),
-  z.object({ action: z.literal("return_to_players"), disputeId: z.string().uuid(), note: z.string().min(1) }),
+  z.object({
+    action: z.literal("return_to_players"),
+    disputeId: z.string().uuid(),
+    note: z.string().min(1),
+  }),
   z.object({ action: z.literal("reopen"), disputeId: z.string().uuid() }),
 ]);
 
@@ -49,7 +72,11 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       await voidMatch(body.disputeId, moderatorId, body.rationale);
       break;
     case "request_more_evidence":
-      await requestMoreEvidence(body.disputeId, moderatorId, body.extensionHours);
+      await requestMoreEvidence(
+        body.disputeId,
+        moderatorId,
+        body.extensionHours,
+      );
       break;
     case "return_to_players":
       await returnToPlayers(body.disputeId, moderatorId, body.note);
@@ -64,4 +91,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   return successResponse({ processed: true });
 }
 
-Deno.serve(withEdgeFunction({ functionName: "moderator-decision", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "moderator-decision", auth: "required" },
+    handler,
+  ),
+);

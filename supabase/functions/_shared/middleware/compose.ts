@@ -5,13 +5,23 @@
 
 import { corsHeadersFor, handlePreflight } from "../security/origin.ts";
 import { securityHeaders } from "../security/headers.ts";
-import { enforceRateLimit, type RateLimitOptions } from "../security/rate-limit.ts";
-import { verifyRequestJwt, verifyOptionalRequestJwt, type AuthenticatedUser } from "../auth/jwt.ts";
+import {
+  enforceRateLimit,
+  type RateLimitOptions,
+} from "../security/rate-limit.ts";
+import {
+  type AuthenticatedUser,
+  verifyOptionalRequestJwt,
+  verifyRequestJwt,
+} from "../auth/jwt.ts";
 import { loadUserProfile, type UserProfile } from "../auth/session.ts";
 import { errorResponse } from "../response/index.ts";
-import { logger, setLogContext, clearLogContext } from "../logger/index.ts";
+import { clearLogContext, logger, setLogContext } from "../logger/index.ts";
 import { withTiming } from "../metrics/index.ts";
-import { getOrCreateCorrelationId, generateRequestId } from "../utils/correlation.ts";
+import {
+  generateRequestId,
+  getOrCreateCorrelationId,
+} from "../utils/correlation.ts";
 import { clearWithinRequestHandlers } from "../events/index.ts";
 import { toEdgeFunctionError } from "../errors/index.ts";
 
@@ -34,7 +44,10 @@ export interface EdgeFunctionOptions {
 
 type Handler = (ctx: EdgeContext) => Promise<Response>;
 
-export function withEdgeFunction(options: EdgeFunctionOptions, handler: Handler) {
+export function withEdgeFunction(
+  options: EdgeFunctionOptions,
+  handler: Handler,
+) {
   return async (request: Request): Promise<Response> => {
     const preflight = handlePreflight(request);
     if (preflight) return preflight;
@@ -42,7 +55,11 @@ export function withEdgeFunction(options: EdgeFunctionOptions, handler: Handler)
     const correlationId = getOrCreateCorrelationId(request);
     const requestId = generateRequestId();
     clearWithinRequestHandlers();
-    setLogContext({ correlationId, requestId, functionName: options.functionName });
+    setLogContext({
+      correlationId,
+      requestId,
+      functionName: options.functionName,
+    });
 
     try {
       const response = await withTiming(options.functionName, async () => {
@@ -57,7 +74,13 @@ export function withEdgeFunction(options: EdgeFunctionOptions, handler: Handler)
         const profile = user ? await loadUserProfile(user) : null;
         if (user) setLogContext({ userId: user.id });
 
-        const ctx: EdgeContext = { request, user, profile, correlationId, requestId };
+        const ctx: EdgeContext = {
+          request,
+          user,
+          profile,
+          correlationId,
+          requestId,
+        };
 
         if (options.rateLimit) {
           const rl = options.rateLimit(ctx);
@@ -68,7 +91,12 @@ export function withEdgeFunction(options: EdgeFunctionOptions, handler: Handler)
       });
 
       const cors = corsHeadersFor(request);
-      for (const [key, value] of Object.entries({ ...cors, "X-Correlation-Id": correlationId })) {
+      for (
+        const [key, value] of Object.entries({
+          ...cors,
+          "X-Correlation-Id": correlationId,
+        })
+      ) {
         response.headers.set(key, value);
       }
       return response;
@@ -80,7 +108,12 @@ export function withEdgeFunction(options: EdgeFunctionOptions, handler: Handler)
         stack: err instanceof Error ? err.stack : undefined,
       });
       const response = errorResponse(err, requestId);
-      for (const [key, value] of Object.entries({ ...securityHeaders, "X-Correlation-Id": correlationId })) {
+      for (
+        const [key, value] of Object.entries({
+          ...securityHeaders,
+          "X-Correlation-Id": correlationId,
+        })
+      ) {
         response.headers.set(key, value);
       }
       return response;

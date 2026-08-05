@@ -1,21 +1,41 @@
 // supabase/functions/admin-announcements/index.ts
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, validateQuery, parseJsonBody } from "../_shared/validation/validate.ts";
+import {
+  parseJsonBody,
+  validateBody,
+  validateQuery,
+} from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
-import { createAnnouncement, publishAnnouncement, retractAnnouncement, listAnnouncements } from "../_admin/announcements.ts";
+import {
+  createAnnouncement,
+  listAnnouncements,
+  publishAnnouncement,
+  retractAnnouncement,
+} from "../_admin/announcements.ts";
 
 const createSchema = z.object({
-  category: z.enum(["platform_notice", "maintenance", "tournament", "emergency"]),
+  category: z.enum([
+    "platform_notice",
+    "maintenance",
+    "tournament",
+    "emergency",
+  ]),
   title: z.string().min(1).max(200),
   body: z.string().min(1).max(5000),
   expiresAt: z.string().datetime({ offset: true }).optional(),
 });
 
-const actionSchema = z.object({ action: z.enum(["publish", "retract"]), announcementId: z.string().uuid() });
+const actionSchema = z.object({
+  action: z.enum(["publish", "retract"]),
+  announcementId: z.string().uuid(),
+});
 const getQuerySchema = z.object({ status: z.string().optional() });
 
 async function handler(ctx: EdgeContext): Promise<Response> {
@@ -46,4 +66,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-announcements", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction(
+    { functionName: "admin-announcements", auth: "required" },
+    handler,
+  ),
+);

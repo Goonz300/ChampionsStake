@@ -4,13 +4,25 @@
 // pattern (wallet-adjustment, tournament-checkin).
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requireAdministrator } from "../_shared/permissions/index.ts";
-import { validateBody, validateQuery, parseJsonBody } from "../_shared/validation/validate.ts";
+import {
+  parseJsonBody,
+  validateBody,
+  validateQuery,
+} from "../_shared/validation/validate.ts";
 import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
-import { searchUsers, suspendUser, reinstateUser, getUserSummary } from "../_admin/users.ts";
+import {
+  getUserSummary,
+  reinstateUser,
+  searchUsers,
+  suspendUser,
+} from "../_admin/users.ts";
 
 const getQuerySchema = paginationQuerySchema.extend({
   view: z.enum(["search", "summary"]).default("search"),
@@ -20,7 +32,12 @@ const getQuerySchema = paginationQuerySchema.extend({
 });
 
 const postBodySchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("suspend"), userId: z.string().uuid(), reasonCode: z.string().min(1), notes: z.string().default("") }),
+  z.object({
+    action: z.literal("suspend"),
+    userId: z.string().uuid(),
+    reasonCode: z.string().min(1),
+    notes: z.string().default(""),
+  }),
   z.object({ action: z.literal("reinstate"), userId: z.string().uuid() }),
 ]);
 
@@ -29,11 +46,18 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
   const query = validateQuery(getQuerySchema, url);
 
   if (query.view === "summary") {
-    if (!query.userId) throw new ValidationError("userId is required for the summary view.");
+    if (!query.userId) {
+      throw new ValidationError("userId is required for the summary view.");
+    }
     return successResponse(await getUserSummary(query.userId));
   }
 
-  const results = await searchUsers({ search: query.search, status: query.status, limit: query.limit, cursor: query.cursor });
+  const results = await searchUsers({
+    search: query.search,
+    status: query.status,
+    limit: query.limit,
+    cursor: query.cursor,
+  });
   return successResponse(results);
 }
 
@@ -41,7 +65,12 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
   const body = validateBody(postBodySchema, await parseJsonBody(ctx.request));
 
   if (body.action === "suspend") {
-    const result = await suspendUser(body.userId, body.reasonCode, body.notes, ctx.user!.id);
+    const result = await suspendUser(
+      body.userId,
+      body.reasonCode,
+      body.notes,
+      ctx.user!.id,
+    );
     return successResponse(result);
   }
 
@@ -56,4 +85,6 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);
 }
 
-Deno.serve(withEdgeFunction({ functionName: "admin-users", auth: "required" }, handler));
+Deno.serve(
+  withEdgeFunction({ functionName: "admin-users", auth: "required" }, handler),
+);

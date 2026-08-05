@@ -1,11 +1,19 @@
 // supabase/functions/_payment/withdrawal-service.ts
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
-import { ValidationError, ConflictError, AuthorizationError } from "../_shared/errors/index.ts";
+import {
+  AuthorizationError,
+  ConflictError,
+  ValidationError,
+} from "../_shared/errors/index.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { getWalletByUserIdOrThrow } from "../_wallet/repository.ts";
-import { initiateWithdrawalHold, settleWithdrawal, reverseWithdrawalHold } from "../_wallet/transfer.ts";
+import {
+  initiateWithdrawalHold,
+  reverseWithdrawalHold,
+  settleWithdrawal,
+} from "../_wallet/transfer.ts";
 import { getActiveProvider } from "./registry.ts";
 
 const WITHDRAWAL_MIN_CENTS = 1000;
@@ -19,7 +27,12 @@ export async function createPayoutMethod(
   const supabase = getServiceRoleClient();
   const provider = await getActiveProvider();
 
-  const result = await provider.createTransferRecipient({ userId, bankCode, accountNumber, accountName });
+  const result = await provider.createTransferRecipient({
+    userId,
+    bankCode,
+    accountNumber,
+    accountName,
+  });
 
   const { data, error } = await supabase
     .from("payout_methods")
@@ -34,7 +47,9 @@ export async function createPayoutMethod(
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(`Failed to save payout method: ${error?.message}`);
+  if (error || !data) {
+    throw new Error(`Failed to save payout method: ${error?.message}`);
+  }
 
   await recordAudit({
     actorId: userId,
@@ -67,12 +82,16 @@ export async function requestWithdrawal(
   idempotencyKey: string,
 ): Promise<{ intentId: string; providerRef: string }> {
   if (amountCents < WITHDRAWAL_MIN_CENTS) {
-    throw new ValidationError(`Withdrawal amount must be at least ${WITHDRAWAL_MIN_CENTS} cents (Business Rules §6).`);
+    throw new ValidationError(
+      `Withdrawal amount must be at least ${WITHDRAWAL_MIN_CENTS} cents (Business Rules §6).`,
+    );
   }
 
   const supabase = getServiceRoleClient();
 
-  const { data: payoutMethod } = await supabase.from("payout_methods").select("*").eq("id", payoutMethodId).maybeSingle();
+  const { data: payoutMethod } = await supabase.from("payout_methods").select(
+    "*",
+  ).eq("id", payoutMethodId).maybeSingle();
   if (!payoutMethod || payoutMethod.user_id !== userId) {
     throw new AuthorizationError("This payout method does not belong to you.");
   }
@@ -87,10 +106,16 @@ export async function requestWithdrawal(
     .eq("status", "pending")
     .maybeSingle();
   if (pendingIntent) {
-    throw new ConflictError("You already have a withdrawal in progress. Wait for it to complete before requesting another.");
+    throw new ConflictError(
+      "You already have a withdrawal in progress. Wait for it to complete before requesting another.",
+    );
   }
 
-  const holdResult = await initiateWithdrawalHold(wallet.walletId, amountCents, `${idempotencyKey}-hold`);
+  const holdResult = await initiateWithdrawalHold(
+    wallet.walletId,
+    amountCents,
+    `${idempotencyKey}-hold`,
+  );
 
   const provider = await getActiveProvider();
   const intentInsert = {
@@ -118,7 +143,9 @@ export async function requestWithdrawal(
       .insert({ ...intentInsert, provider_ref: transfer.providerRef })
       .select("id")
       .single();
-    if (error || !intent) throw new Error(`Failed to record withdrawal intent: ${error?.message}`);
+    if (error || !intent) {
+      throw new Error(`Failed to record withdrawal intent: ${error?.message}`);
+    }
 
     await recordAudit({
       actorId: userId,
@@ -129,18 +156,30 @@ export async function requestWithdrawal(
       targetId: intent.id,
       metadata: { amountCents, providerRef: transfer.providerRef },
     });
-    await emit({ type: "TransactionCompleted", payload: { userId, event: "WithdrawalRequested" }, emittedBy: "payment-transfer" });
+    await emit({
+      type: "TransactionCompleted",
+      payload: { userId, event: "WithdrawalRequested" },
+      emittedBy: "payment-transfer",
+    });
 
     return { intentId: intent.id, providerRef: transfer.providerRef };
   } catch (err) {
-    await reverseWithdrawalHold(wallet.walletId, amountCents, "Provider transfer initiation failed", `${idempotencyKey}-reverse`);
+    await reverseWithdrawalHold(
+      wallet.walletId,
+      amountCents,
+      "Provider transfer initiation failed",
+      `${idempotencyKey}-reverse`,
+    );
     throw err;
   }
 }
 
 /** Called by webhook-service.ts once the provider confirms the transfer's
  * final status (never by a client-reported status). */
-export async function finalizeWithdrawal(providerRef: string, providerStatus: "success" | "failed"): Promise<void> {
+export async function finalizeWithdrawal(
+  providerRef: string,
+  providerStatus: "success" | "failed",
+): Promise<void> {
   const supabase = getServiceRoleClient();
   const { data: intent } = await supabase
     .from("payment_intents")
@@ -149,18 +188,43 @@ export async function finalizeWithdrawal(providerRef: string, providerStatus: "s
     .eq("kind", "withdrawal")
     .maybeSingle();
 
-  if (!intent) throw new ValidationError(`No withdrawal intent found for provider reference ${providerRef}.`);
+  if (!intent) {
+    throw new ValidationError(
+      `No withdrawal intent found for provider reference ${providerRef}.`,
+    );
+  }
   if (intent.status !== "pending") return;
 
   if (providerStatus === "success") {
-    const result = await settleWithdrawal(intent.wallet_id, intent.amount_cents, intent.provider, providerRef, `${providerRef}-settle`);
+    const result = await settleWithdrawal(
+      intent.wallet_id,
+      intent.amount_cents,
+      intent.provider,
+      providerRef,
+      `${providerRef}-settle`,
+    );
     await supabase
       .from("payment_intents")
-      .update({ status: "completed", resulting_transaction_id: result.transactionId })
+      .update({
+        status: "completed",
+        resulting_transaction_id: result.transactionId,
+      })
       .eq("id", intent.id);
   } else {
-    await reverseWithdrawalHold(intent.wallet_id, intent.amount_cents, "Provider transfer failed", `${providerRef}-reverse`);
-    await supabase.from("payment_intents").update({ status: "failed" }).eq("id", intent.id);
-    await emit({ type: "TransactionFailed", payload: { providerRef, event: "WithdrawalFailed" }, emittedBy: "payment-webhook" });
+    await reverseWithdrawalHold(
+      intent.wallet_id,
+      intent.amount_cents,
+      "Provider transfer failed",
+      `${providerRef}-reverse`,
+    );
+    await supabase.from("payment_intents").update({ status: "failed" }).eq(
+      "id",
+      intent.id,
+    );
+    await emit({
+      type: "TransactionFailed",
+      payload: { providerRef, event: "WithdrawalFailed" },
+      emittedBy: "payment-webhook",
+    });
   }
 }

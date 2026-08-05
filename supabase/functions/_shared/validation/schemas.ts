@@ -28,7 +28,9 @@ export const dateRangeSchema = z
 
 /** Builds a Zod enum schema from a readonly string-literal array, for
  * consistent "one of these exact values" validation across every function. */
-export function enumSchema<T extends readonly [string, ...string[]]>(values: T) {
+export function enumSchema<T extends readonly [string, ...string[]]>(
+  values: T,
+) {
   return z.enum(values);
 }
 

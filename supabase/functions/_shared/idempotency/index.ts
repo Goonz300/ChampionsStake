@@ -5,7 +5,10 @@ import { IdempotencyConflictError } from "../errors/index.ts";
 import { config } from "../config/index.ts";
 
 async function fingerprintOf(endpoint: string, body: unknown): Promise<string> {
-  const normalized = JSON.stringify(body, Object.keys(body as Record<string, unknown>).sort());
+  const normalized = JSON.stringify(
+    body,
+    Object.keys(body as Record<string, unknown>).sort(),
+  );
   const bytes = new TextEncoder().encode(`${endpoint}:${normalized}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest))
@@ -49,24 +52,31 @@ export async function beginIdempotentRequest<T>(
     if (existing.status === "completed") {
       return {
         kind: "replayed",
-        response: { statusCode: existing.response_status_code ?? 200, body: existing.response_body as T },
+        response: {
+          statusCode: existing.response_status_code ?? 200,
+          body: existing.response_body as T,
+        },
       };
     }
     // status === 'in_progress': a concurrent request with the same key is
     // still running. Treat as a conflict rather than double-processing.
-    throw new IdempotencyConflictError("A request with this idempotency key is already being processed.");
+    throw new IdempotencyConflictError(
+      "A request with this idempotency key is already being processed.",
+    );
   }
 
   const expiresAt = new Date(
     Date.now() + config.timeouts.idempotencyWindowHours * 60 * 60 * 1000,
   ).toISOString();
 
-  const { error: insertError } = await supabase.from("idempotency_keys").insert({
-    key,
-    request_fingerprint: fingerprint,
-    status: "in_progress",
-    expires_at: expiresAt,
-  });
+  const { error: insertError } = await supabase.from("idempotency_keys").insert(
+    {
+      key,
+      request_fingerprint: fingerprint,
+      status: "in_progress",
+      expires_at: expiresAt,
+    },
+  );
 
   if (insertError) {
     // Unique-violation race: another request beat us to inserting this key
@@ -81,10 +91,15 @@ export async function beginIdempotentRequest<T>(
     if (raceWinner?.status === "completed") {
       return {
         kind: "replayed",
-        response: { statusCode: raceWinner.response_status_code ?? 200, body: raceWinner.response_body as T },
+        response: {
+          statusCode: raceWinner.response_status_code ?? 200,
+          body: raceWinner.response_body as T,
+        },
       };
     }
-    throw new IdempotencyConflictError("A request with this idempotency key is already being processed.");
+    throw new IdempotencyConflictError(
+      "A request with this idempotency key is already being processed.",
+    );
   }
 
   return { kind: "fresh" };
@@ -117,5 +132,8 @@ export async function failIdempotentRequest(key: string): Promise<void> {
   // through to the in-progress conflict branch today. A future enhancement
   // could explicitly allow retrying a 'failed' key; documented here as a
   // deliberate v1 simplification, not an oversight.
-  await supabase.from("idempotency_keys").update({ status: "failed" }).eq("key", key);
+  await supabase.from("idempotency_keys").update({ status: "failed" }).eq(
+    "key",
+    key,
+  );
 }

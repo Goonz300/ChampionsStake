@@ -16,7 +16,10 @@ import type { WalletBalances } from "./types.ts";
  * migration backfilling wallets for accounts created before the trigger
  * existed. It is NOT part of the normal registration flow.
  */
-export async function createWalletIfMissing(userId: string, actorId: string | null): Promise<WalletBalances> {
+export async function createWalletIfMissing(
+  userId: string,
+  actorId: string | null,
+): Promise<WalletBalances> {
   const existing = await findWalletByUserId(userId);
   if (existing) return existing;
 
@@ -32,7 +35,9 @@ export async function createWalletIfMissing(userId: string, actorId: string | nu
     // and this insert. Re-fetch rather than treating this as a hard failure.
     const raceWinner = await findWalletByUserId(userId);
     if (raceWinner) return raceWinner;
-    throw new Error(`Failed to create wallet for user ${userId}: ${error.message}`);
+    throw new Error(
+      `Failed to create wallet for user ${userId}: ${error.message}`,
+    );
   }
 
   await recordAudit({
@@ -45,7 +50,11 @@ export async function createWalletIfMissing(userId: string, actorId: string | nu
     metadata: { user_id: userId },
   });
 
-  await emit({ type: "WalletCreated", payload: { walletId: data.id, userId }, emittedBy: "wallet-create" });
+  await emit({
+    type: "WalletCreated",
+    payload: { walletId: data.id, userId },
+    emittedBy: "wallet-create",
+  });
 
   return {
     walletId: data.id,
@@ -70,10 +79,17 @@ export async function getBalance(userId: string): Promise<WalletBalances> {
  * pending manual review, safety-first, not silent auto-correction") and
  * available as an administrative action.
  */
-export async function freezeWallet(walletId: string, reason: string, actorId: string | null): Promise<void> {
+export async function freezeWallet(
+  walletId: string,
+  reason: string,
+  actorId: string | null,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("wallets").update({ status: "frozen" }).eq("id", walletId);
-  if (error) throw new Error(`Failed to freeze wallet ${walletId}: ${error.message}`);
+  const { error } = await supabase.from("wallets").update({ status: "frozen" })
+    .eq("id", walletId);
+  if (error) {
+    throw new Error(`Failed to freeze wallet ${walletId}: ${error.message}`);
+  }
 
   await recordAudit({
     actorId,
@@ -85,19 +101,32 @@ export async function freezeWallet(walletId: string, reason: string, actorId: st
     metadata: { reason },
   });
 
-  await emit({ type: "WalletUpdated", payload: { walletId, status: "frozen", reason }, emittedBy: "wallet-service" });
+  await emit({
+    type: "WalletUpdated",
+    payload: { walletId, status: "frozen", reason },
+    emittedBy: "wallet-service",
+  });
 }
 
-export async function unfreezeWallet(walletId: string, actorId: string): Promise<void> {
+export async function unfreezeWallet(
+  walletId: string,
+  actorId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { data: wallet } = await supabase.from("wallets").select("status").eq("id", walletId).maybeSingle();
+  const { data: wallet } = await supabase.from("wallets").select("status").eq(
+    "id",
+    walletId,
+  ).maybeSingle();
 
   if (!wallet || wallet.status !== "frozen") {
     throw new ConflictError(`Wallet ${walletId} is not currently frozen.`);
   }
 
-  const { error } = await supabase.from("wallets").update({ status: "active" }).eq("id", walletId);
-  if (error) throw new Error(`Failed to unfreeze wallet ${walletId}: ${error.message}`);
+  const { error } = await supabase.from("wallets").update({ status: "active" })
+    .eq("id", walletId);
+  if (error) {
+    throw new Error(`Failed to unfreeze wallet ${walletId}: ${error.message}`);
+  }
 
   await recordAudit({
     actorId,
@@ -108,7 +137,11 @@ export async function unfreezeWallet(walletId: string, actorId: string): Promise
     targetId: walletId,
   });
 
-  await emit({ type: "WalletUpdated", payload: { walletId, status: "active" }, emittedBy: "wallet-service" });
+  await emit({
+    type: "WalletUpdated",
+    payload: { walletId, status: "active" },
+    emittedBy: "wallet-service",
+  });
 }
 
 /**
@@ -118,11 +151,14 @@ export async function unfreezeWallet(walletId: string, actorId: string): Promise
  * Engine (a future phase), which should call this only after confirming
  * that side is clear.
  */
-export async function closeWallet(walletId: string, actorId: string | null): Promise<void> {
+export async function closeWallet(
+  walletId: string,
+  actorId: string | null,
+): Promise<void> {
   const wallet = await getWalletBalanceById(walletId);
 
-  const totalCents =
-    wallet.availableCents + wallet.escrowedCents + wallet.pendingCents + wallet.bonusCents + wallet.referralCents;
+  const totalCents = wallet.availableCents + wallet.escrowedCents +
+    wallet.pendingCents + wallet.bonusCents + wallet.referralCents;
   if (totalCents !== 0) {
     throw new WalletError(
       `Cannot close wallet ${walletId}: non-zero balance remains (${totalCents} cents across all sub-balances). Withdraw or otherwise clear funds first.`,
@@ -130,14 +166,17 @@ export async function closeWallet(walletId: string, actorId: string | null): Pro
   }
 
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("wallets").update({ status: "frozen" }).eq("id", walletId);
+  const { error } = await supabase.from("wallets").update({ status: "frozen" })
+    .eq("id", walletId);
   // Closure reuses 'frozen' status rather than adding a third wallet_status
   // enum value — DB-001's wallet_status is deliberately just
   // active/frozen, and account-level closure is already tracked on
   // profiles.status (closed_at), which is the actual source of truth for
   // "this account is closed." A frozen wallet on a closed account is
   // functionally identical to a dedicated "closed" wallet status would be.
-  if (error) throw new Error(`Failed to close wallet ${walletId}: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to close wallet ${walletId}: ${error.message}`);
+  }
 
   await recordAudit({
     actorId,
@@ -151,7 +190,10 @@ export async function closeWallet(walletId: string, actorId: string | null): Pro
 
 async function getWalletBalanceById(walletId: string): Promise<WalletBalances> {
   const supabase = getServiceRoleClient();
-  const { data, error } = await supabase.from("wallets").select("*").eq("id", walletId).maybeSingle();
+  const { data, error } = await supabase.from("wallets").select("*").eq(
+    "id",
+    walletId,
+  ).maybeSingle();
   if (error || !data) throw new WalletError(`Wallet ${walletId} not found.`);
   return {
     walletId: data.id,

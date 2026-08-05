@@ -6,9 +6,12 @@
 // each other, which an Idempotency-Key header alone cannot do).
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
 import { requirePlayer } from "../_shared/permissions/index.ts";
-import { validateBody, parseJsonBody } from "../_shared/validation/validate.ts";
+import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { declareWinner } from "../_challenge/escrow-transition.ts";
 
@@ -28,7 +31,11 @@ Deno.serve(
     {
       functionName: "challenge-declare-winner",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `challenge-declare-winner:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 10 }),
+      rateLimit: (ctx) => ({
+        key: `challenge-declare-winner:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 10,
+      }),
     },
     handler,
   ),

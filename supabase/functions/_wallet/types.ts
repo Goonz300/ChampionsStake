@@ -73,7 +73,11 @@ export interface TransferRequest {
   legs: LedgerLeg[];
   initiatedBy: string | null; // profile id, or null for a system-triggered transfer
   relatedEntity?: RelatedEntityRef;
-  releaseReason?: "mutual_release" | "moderator_decision" | "auto_expiry" | "refund_void";
+  releaseReason?:
+    | "mutual_release"
+    | "moderator_decision"
+    | "auto_expiry"
+    | "refund_void";
   idempotencyKey?: string;
 }
 

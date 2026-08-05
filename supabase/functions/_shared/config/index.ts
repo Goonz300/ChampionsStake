@@ -40,11 +40,17 @@ export const config = {
       return requiredEnv("SUPABASE_DB_URL");
     },
     maxPoolSize: Number(optionalEnv("EDGE_DB_MAX_POOL_SIZE", "1")), // 1 per invocation — see transactions/README note
-    statementTimeoutMs: Number(optionalEnv("EDGE_DB_STATEMENT_TIMEOUT_MS", "10000")),
+    statementTimeoutMs: Number(
+      optionalEnv("EDGE_DB_STATEMENT_TIMEOUT_MS", "10000"),
+    ),
   },
   timeouts: {
-    defaultRequestTimeoutMs: Number(optionalEnv("EDGE_REQUEST_TIMEOUT_MS", "15000")),
-    idempotencyWindowHours: Number(optionalEnv("EDGE_IDEMPOTENCY_WINDOW_HOURS", "24")),
+    defaultRequestTimeoutMs: Number(
+      optionalEnv("EDGE_REQUEST_TIMEOUT_MS", "15000"),
+    ),
+    idempotencyWindowHours: Number(
+      optionalEnv("EDGE_IDEMPOTENCY_WINDOW_HOURS", "24"),
+    ),
   },
   retries: {
     defaultMaxAttempts: Number(optionalEnv("EDGE_RETRY_MAX_ATTEMPTS", "3")),
@@ -57,14 +63,20 @@ export const config = {
   rateLimit: {
     // Defaults; individual functions may override per-endpoint via the
     // options passed to withRateLimit() (security/rate-limit.ts).
-    defaultWindowSeconds: Number(optionalEnv("EDGE_RATE_LIMIT_WINDOW_SECONDS", "60")),
-    defaultMaxRequests: Number(optionalEnv("EDGE_RATE_LIMIT_MAX_REQUESTS", "60")),
+    defaultWindowSeconds: Number(
+      optionalEnv("EDGE_RATE_LIMIT_WINDOW_SECONDS", "60"),
+    ),
+    defaultMaxRequests: Number(
+      optionalEnv("EDGE_RATE_LIMIT_MAX_REQUESTS", "60"),
+    ),
   },
   security: {
     get allowedOrigins() {
       return optionalEnv("EDGE_ALLOWED_ORIGINS", "").split(",").filter(Boolean);
     },
-    replayWindowSeconds: Number(optionalEnv("EDGE_REPLAY_WINDOW_SECONDS", "300")),
+    replayWindowSeconds: Number(
+      optionalEnv("EDGE_REPLAY_WINDOW_SECONDS", "300"),
+    ),
     // Shared secret for scheduled (pg_cron-triggered) invocations of any
     // Edge Function that needs to run without a user JWT — STORE-001's
     // storage-cleanup uses its own STORAGE_CLEANUP_SHARED_SECRET; this is

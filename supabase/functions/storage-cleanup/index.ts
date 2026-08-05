@@ -41,7 +41,9 @@ Deno.serve(async (req: Request) => {
   // schedule time; this is a defense-in-depth check so the function isn't
   // callable by anyone who merely learns its URL.
   if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+    });
   }
 
   const supabase = createClient(
@@ -57,7 +59,9 @@ Deno.serve(async (req: Request) => {
   };
 
   // --- 1. Expired pending uploads --------------------------------------
-  const staleCutoff = new Date(Date.now() - PENDING_GRACE_HOURS * 60 * 60 * 1000).toISOString();
+  const staleCutoff = new Date(
+    Date.now() - PENDING_GRACE_HOURS * 60 * 60 * 1000,
+  ).toISOString();
   const { data: stalePending, error: staleError } = await supabase
     .from("file_uploads")
     .select("id, bucket, storage_path")
@@ -65,12 +69,17 @@ Deno.serve(async (req: Request) => {
     .lt("created_at", staleCutoff);
 
   if (staleError) {
-    summary.errors.push(`Failed to query stale pending uploads: ${staleError.message}`);
+    summary.errors.push(
+      `Failed to query stale pending uploads: ${staleError.message}`,
+    );
   } else {
     for (const row of stalePending ?? []) {
-      const { error: removeError } = await supabase.storage.from(row.bucket).remove([row.storage_path]);
+      const { error: removeError } = await supabase.storage.from(row.bucket)
+        .remove([row.storage_path]);
       if (removeError) {
-        summary.errors.push(`Failed to remove ${row.bucket}/${row.storage_path}: ${removeError.message}`);
+        summary.errors.push(
+          `Failed to remove ${row.bucket}/${row.storage_path}: ${removeError.message}`,
+        );
         continue;
       }
       await supabase
@@ -88,7 +97,8 @@ Deno.serve(async (req: Request) => {
   // (Edge Functions run on Deno and don't share a module graph with the
   // Next.js app) — kept in sync manually, flagged in the deliverable doc as
   // a duplication to watch for drift.
-  const retentionCutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+  const retentionCutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+    .toISOString();
   const { data: abandoned, error: abandonedError } = await supabase
     .from("file_uploads")
     .select("id, bucket, storage_path, related_table, related_id")
@@ -97,7 +107,9 @@ Deno.serve(async (req: Request) => {
     .lt("created_at", retentionCutoff);
 
   if (abandonedError) {
-    summary.errors.push(`Failed to query abandoned media: ${abandonedError.message}`);
+    summary.errors.push(
+      `Failed to query abandoned media: ${abandonedError.message}`,
+    );
   } else {
     for (const row of abandoned ?? []) {
       if (row.related_table !== "challenges" || !row.related_id) continue;
@@ -108,12 +120,20 @@ Deno.serve(async (req: Request) => {
         .eq("id", row.related_id)
         .maybeSingle();
 
-      const terminalStatuses = ["completed", "cancelled", "expired", "archived"];
+      const terminalStatuses = [
+        "completed",
+        "cancelled",
+        "expired",
+        "archived",
+      ];
       if (!challenge || !terminalStatuses.includes(challenge.status)) continue;
 
-      const { error: removeError } = await supabase.storage.from(row.bucket).remove([row.storage_path]);
+      const { error: removeError } = await supabase.storage.from(row.bucket)
+        .remove([row.storage_path]);
       if (removeError) {
-        summary.errors.push(`Failed to remove ${row.bucket}/${row.storage_path}: ${removeError.message}`);
+        summary.errors.push(
+          `Failed to remove ${row.bucket}/${row.storage_path}: ${removeError.message}`,
+        );
         continue;
       }
       await supabase
@@ -133,8 +153,15 @@ Deno.serve(async (req: Request) => {
   // under them. Reading storage.objects directly avoids that shallow-listing
   // limitation entirely.
   const buckets = [
-    "avatars", "challenge-media", "proof-images", "proof-videos",
-    "chat-media", "voice-notes", "kyc-documents", "tournament-assets", "system-assets",
+    "avatars",
+    "challenge-media",
+    "proof-images",
+    "proof-videos",
+    "chat-media",
+    "voice-notes",
+    "kyc-documents",
+    "tournament-assets",
+    "system-assets",
   ];
 
   for (const bucket of buckets) {
@@ -146,7 +173,9 @@ Deno.serve(async (req: Request) => {
       .limit(1000);
 
     if (listError) {
-      summary.errors.push(`Failed to list bucket ${bucket}: ${listError.message}`);
+      summary.errors.push(
+        `Failed to list bucket ${bucket}: ${listError.message}`,
+      );
       continue;
     }
 
@@ -160,11 +189,14 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (!metadataRow) {
-        const { error: removeError } = await supabase.storage.from(bucket).remove([obj.name]);
+        const { error: removeError } = await supabase.storage.from(bucket)
+          .remove([obj.name]);
         if (!removeError) {
           summary.orphanedObjectsRemoved += 1;
         } else {
-          summary.errors.push(`Failed to remove orphan ${bucket}/${obj.name}: ${removeError.message}`);
+          summary.errors.push(
+            `Failed to remove orphan ${bucket}/${obj.name}: ${removeError.message}`,
+          );
         }
       }
     }

@@ -22,7 +22,9 @@ export function corsHeadersFor(request: Request): Record<string, string> {
   if (config.security.allowedOrigins.length === 0) {
     // No allow-list configured (e.g. local dev) — permissive, but logged so
     // it's visible this isn't a production-safe default.
-    console.warn("EDGE_ALLOWED_ORIGINS is not configured; allowing all origins.");
+    console.warn(
+      "EDGE_ALLOWED_ORIGINS is not configured; allowing all origins.",
+    );
     return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
   }
 
@@ -41,7 +43,8 @@ export function handlePreflight(request: Request): Response | null {
     headers: {
       ...corsHeadersFor(request),
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "authorization, content-type, idempotency-key, x-correlation-id",
+      "Access-Control-Allow-Headers":
+        "authorization, content-type, idempotency-key, x-correlation-id",
       "Access-Control-Max-Age": "86400",
     },
   });

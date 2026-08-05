@@ -8,10 +8,19 @@
 
 import { z } from "npm:zod@3.24.1";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
-import { NotFoundError, AuthorizationError, ConflictError } from "../_shared/errors/index.ts";
+import {
+  AuthorizationError,
+  ConflictError,
+  NotFoundError,
+} from "../_shared/errors/index.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
-import { getChallengeOrThrow, updateChallengeStatus, recordChallengeEvent, getWalletIdForUser } from "./repository.ts";
+import {
+  getChallengeOrThrow,
+  getWalletIdForUser,
+  recordChallengeEvent,
+  updateChallengeStatus,
+} from "./repository.ts";
 import { releaseFromEscrow } from "../_wallet/transfer.ts";
 
 export const createChallengeSchema = z.object({
@@ -29,7 +38,10 @@ export type UpdateChallengeInput = z.infer<typeof updateChallengeSchema>;
 
 /** Creates a new draft. No escrow, no visibility to anyone else yet — a
  * draft is purely the creator's own in-progress configuration. */
-export async function createChallenge(creatorId: string, input: CreateChallengeInput): Promise<{ id: string }> {
+export async function createChallenge(
+  creatorId: string,
+  input: CreateChallengeInput,
+): Promise<{ id: string }> {
   const supabase = getServiceRoleClient();
 
   const { data, error } = await supabase
@@ -47,7 +59,9 @@ export async function createChallenge(creatorId: string, input: CreateChallengeI
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(`Failed to create challenge draft: ${error?.message}`);
+  if (error || !data) {
+    throw new Error(`Failed to create challenge draft: ${error?.message}`);
+  }
 
   await recordChallengeEvent(data.id, "ChallengeDraftCreated", creatorId);
   await recordAudit({
@@ -64,14 +78,20 @@ export async function createChallenge(creatorId: string, input: CreateChallengeI
 
 /** Edits a draft. Business Rules §3: editing is only ever legal while the
  * challenge is still in 'draft' — every other state is a blocked action. */
-export async function updateChallenge(challengeId: string, callerId: string, input: UpdateChallengeInput): Promise<void> {
+export async function updateChallenge(
+  challengeId: string,
+  callerId: string,
+  input: UpdateChallengeInput,
+): Promise<void> {
   const challenge = await getChallengeOrThrow(challengeId);
 
   if (challenge.creatorId !== callerId) {
     throw new AuthorizationError("Only the creator may edit this challenge.");
   }
   if (challenge.status !== "draft") {
-    throw new ConflictError(`Challenge ${challengeId} can only be edited while in 'draft' (current: ${challenge.status}).`);
+    throw new ConflictError(
+      `Challenge ${challengeId} can only be edited while in 'draft' (current: ${challenge.status}).`,
+    );
   }
 
   const supabase = getServiceRoleClient();
@@ -83,10 +103,19 @@ export async function updateChallenge(challengeId: string, callerId: string, inp
   if (input.platformCode) update.platform_code = input.platformCode;
   if (input.regionCode) update.region_code = input.regionCode;
 
-  const { error } = await supabase.from("challenges").update(update).eq("id", challengeId);
-  if (error) throw new Error(`Failed to update challenge ${challengeId}: ${error.message}`);
+  const { error } = await supabase.from("challenges").update(update).eq(
+    "id",
+    challengeId,
+  );
+  if (error) {
+    throw new Error(
+      `Failed to update challenge ${challengeId}: ${error.message}`,
+    );
+  }
 
-  await recordChallengeEvent(challengeId, "ChallengeEdited", callerId, { fields: Object.keys(update) });
+  await recordChallengeEvent(challengeId, "ChallengeEdited", callerId, {
+    fields: Object.keys(update),
+  });
   await recordAudit({
     actorId: callerId,
     actorType: "user",
@@ -106,7 +135,10 @@ export async function updateChallenge(challengeId: string, callerId: string, inp
  * never touched a wallet, so deleting it doesn't violate that principle;
  * this function enforces that boundary rather than trusting the caller.
  */
-export async function deleteChallenge(challengeId: string, callerId: string): Promise<void> {
+export async function deleteChallenge(
+  challengeId: string,
+  callerId: string,
+): Promise<void> {
   const challenge = await getChallengeOrThrow(challengeId);
 
   if (challenge.creatorId !== callerId) {
@@ -119,8 +151,15 @@ export async function deleteChallenge(challengeId: string, callerId: string): Pr
   }
 
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("challenges").delete().eq("id", challengeId).eq("status", "draft");
-  if (error) throw new Error(`Failed to delete challenge ${challengeId}: ${error.message}`);
+  const { error } = await supabase.from("challenges").delete().eq(
+    "id",
+    challengeId,
+  ).eq("status", "draft");
+  if (error) {
+    throw new Error(
+      `Failed to delete challenge ${challengeId}: ${error.message}`,
+    );
+  }
 
   await recordAudit({
     actorId: callerId,
@@ -134,15 +173,22 @@ export async function deleteChallenge(challengeId: string, callerId: string): Pr
 
 /** Duplicates a challenge's configuration into a new draft (not its
  * status/participants/escrow — those never carry over). */
-export async function duplicateChallenge(challengeId: string, callerId: string): Promise<{ id: string }> {
+export async function duplicateChallenge(
+  challengeId: string,
+  callerId: string,
+): Promise<{ id: string }> {
   const supabase = getServiceRoleClient();
   const { data: fullOriginal, error } = await supabase
     .from("challenges")
-    .select("game_id, match_type, stake_cents, visibility, platform_code, region_code")
+    .select(
+      "game_id, match_type, stake_cents, visibility, platform_code, region_code",
+    )
     .eq("id", challengeId)
     .single();
 
-  if (error || !fullOriginal) throw new NotFoundError(`Challenge ${challengeId} does not exist.`);
+  if (error || !fullOriginal) {
+    throw new NotFoundError(`Challenge ${challengeId} does not exist.`);
+  }
 
   return createChallenge(callerId, {
     gameId: fullOriginal.game_id,
@@ -160,7 +206,9 @@ export async function duplicateChallenge(challengeId: string, callerId: string):
 export async function expireChallenge(challengeId: string): Promise<void> {
   const challenge = await getChallengeOrThrow(challengeId);
   if (challenge.status !== "published" && challenge.status !== "waiting") {
-    throw new ConflictError(`Challenge ${challengeId} is not in an expirable state (current: ${challenge.status}).`);
+    throw new ConflictError(
+      `Challenge ${challengeId} is not in an expirable state (current: ${challenge.status}).`,
+    );
   }
 
   const walletId = await getWalletIdForUser(challenge.creatorId);
@@ -187,7 +235,11 @@ export async function expireChallenge(challengeId: string): Promise<void> {
     targetId: challengeId,
   });
 
-  await emit({ type: "ChallengeCreated", payload: { challengeId, event: "ChallengeExpired" }, emittedBy: "challenge-expire" });
+  await emit({
+    type: "ChallengeCreated",
+    payload: { challengeId, event: "ChallengeExpired" },
+    emittedBy: "challenge-expire",
+  });
 }
 
 /** Archives a terminal challenge (completed/cancelled/expired -> archived).
@@ -195,12 +247,18 @@ export async function expireChallenge(challengeId: string): Promise<void> {
 export async function archiveChallenge(challengeId: string): Promise<void> {
   const challenge = await getChallengeOrThrow(challengeId);
   if (!["completed", "cancelled", "expired"].includes(challenge.status)) {
-    throw new ConflictError(`Challenge ${challengeId} is not in an archivable state (current: ${challenge.status}).`);
+    throw new ConflictError(
+      `Challenge ${challengeId} is not in an archivable state (current: ${challenge.status}).`,
+    );
   }
 
   await updateChallengeStatus(challengeId, { status: "archived" });
   await recordChallengeEvent(challengeId, "ChallengeArchived", null);
-  await emit({ type: "ChallengeCreated", payload: { challengeId, event: "ChallengeArchived" }, emittedBy: "challenge-archive" });
+  await emit({
+    type: "ChallengeCreated",
+    payload: { challengeId, event: "ChallengeArchived" },
+    emittedBy: "challenge-archive",
+  });
 }
 
 export interface DiscoveryFilter {
@@ -209,7 +267,13 @@ export interface DiscoveryFilter {
   regionCode?: string;
   minStakeCents?: number;
   maxStakeCents?: number;
-  sort: "trending" | "newest" | "highest_prize" | "region" | "friends" | "recommended";
+  sort:
+    | "trending"
+    | "newest"
+    | "highest_prize"
+    | "region"
+    | "friends"
+    | "recommended";
   userId?: string; // required for 'friends'/'recommended'
   cursor?: string;
   limit: number;
@@ -227,16 +291,24 @@ export async function browseChallenges(filter: DiscoveryFilter) {
 
   let query = supabase
     .from("challenges")
-    .select("id, creator_id, game_id, stake_cents, visibility, status, platform_code, region_code, created_at")
+    .select(
+      "id, creator_id, game_id, stake_cents, visibility, status, platform_code, region_code, created_at",
+    )
     .in("status", ["published", "waiting"])
     .eq("visibility", "public")
     .limit(filter.limit);
 
   if (filter.gameId) query = query.eq("game_id", filter.gameId);
-  if (filter.platformCode) query = query.eq("platform_code", filter.platformCode);
+  if (filter.platformCode) {
+    query = query.eq("platform_code", filter.platformCode);
+  }
   if (filter.regionCode) query = query.eq("region_code", filter.regionCode);
-  if (filter.minStakeCents) query = query.gte("stake_cents", filter.minStakeCents);
-  if (filter.maxStakeCents) query = query.lte("stake_cents", filter.maxStakeCents);
+  if (filter.minStakeCents) {
+    query = query.gte("stake_cents", filter.minStakeCents);
+  }
+  if (filter.maxStakeCents) {
+    query = query.lte("stake_cents", filter.maxStakeCents);
+  }
   if (filter.cursor) query = query.lt("created_at", filter.cursor);
 
   switch (filter.sort) {
@@ -260,7 +332,7 @@ export async function browseChallenges(filter: DiscoveryFilter) {
       .or(`requester_id.eq.${filter.userId},addressee_id.eq.${filter.userId}`);
 
     const friendIds = (friendRows ?? []).map((f) =>
-      f.requester_id === filter.userId ? f.addressee_id : f.requester_id,
+      f.requester_id === filter.userId ? f.addressee_id : f.requester_id
     );
     if (friendIds.length === 0) return [];
     query = query.in("creator_id", friendIds);
@@ -280,18 +352,36 @@ export async function getChallengeTimeline(challengeId: string) {
     .eq("challenge_id", challengeId)
     .order("created_at", { ascending: true });
 
-  if (error) throw new Error(`Failed to fetch timeline for challenge ${challengeId}: ${error.message}`);
-  if (!data) throw new NotFoundError(`No timeline found for challenge ${challengeId}.`);
+  if (error) {
+    throw new Error(
+      `Failed to fetch timeline for challenge ${challengeId}: ${error.message}`,
+    );
+  }
+  if (!data) {
+    throw new NotFoundError(`No timeline found for challenge ${challengeId}.`);
+  }
   return data;
 }
 
-export async function pinChallenge(userId: string, challengeId: string): Promise<void> {
+export async function pinChallenge(
+  userId: string,
+  challengeId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("challenge_pins").upsert({ user_id: userId, challenge_id: challengeId });
+  const { error } = await supabase.from("challenge_pins").upsert({
+    user_id: userId,
+    challenge_id: challengeId,
+  });
   if (error) throw new Error(`Failed to pin challenge: ${error.message}`);
 }
 
-export async function unpinChallenge(userId: string, challengeId: string): Promise<void> {
+export async function unpinChallenge(
+  userId: string,
+  challengeId: string,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  await supabase.from("challenge_pins").delete().eq("user_id", userId).eq("challenge_id", challengeId);
+  await supabase.from("challenge_pins").delete().eq("user_id", userId).eq(
+    "challenge_id",
+    challengeId,
+  );
 }

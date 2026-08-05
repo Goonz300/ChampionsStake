@@ -13,29 +13,61 @@ import { WalletError } from "../_shared/errors/index.ts";
 import type { TransferRequest } from "./types.ts";
 
 Deno.test("postBalancedEntries rejects an empty legs array", async () => {
-  const request: TransferRequest = { type: "adjustment", legs: [], initiatedBy: null };
-  await assertRejects(() => postBalancedEntries(request), WalletError, "at least one ledger leg");
+  const request: TransferRequest = {
+    type: "adjustment",
+    legs: [],
+    initiatedBy: null,
+  };
+  await assertRejects(
+    () => postBalancedEntries(request),
+    WalletError,
+    "at least one ledger leg",
+  );
 });
 
 Deno.test("postBalancedEntries rejects unbalanced debits and credits", async () => {
   const request: TransferRequest = {
     type: "adjustment",
     legs: [
-      { walletId: "11111111-1111-1111-1111-111111111111", accountType: "available", direction: "debit", amountCents: 1000 },
-      { walletId: "22222222-2222-2222-2222-222222222222", accountType: "available", direction: "credit", amountCents: 500 },
+      {
+        walletId: "11111111-1111-1111-1111-111111111111",
+        accountType: "available",
+        direction: "debit",
+        amountCents: 1000,
+      },
+      {
+        walletId: "22222222-2222-2222-2222-222222222222",
+        accountType: "available",
+        direction: "credit",
+        amountCents: 500,
+      },
     ],
     initiatedBy: null,
   };
 
-  await assertRejects(() => postBalancedEntries(request), WalletError, "Unbalanced ledger request");
+  await assertRejects(
+    () => postBalancedEntries(request),
+    WalletError,
+    "Unbalanced ledger request",
+  );
 });
 
 Deno.test("postBalancedEntries's balance check passes for genuinely balanced legs (fails later at the DB connection step, which is expected in this offline test environment)", async () => {
   const request: TransferRequest = {
     type: "adjustment",
     legs: [
-      { walletId: "11111111-1111-1111-1111-111111111111", accountType: "available", direction: "debit", amountCents: 1000 },
-      { walletId: "22222222-2222-2222-2222-222222222222", accountType: "available", direction: "credit", amountCents: 1000 },
+      {
+        walletId: "11111111-1111-1111-1111-111111111111",
+        accountType: "available",
+        direction: "debit",
+        amountCents: 1000,
+      },
+      {
+        walletId: "22222222-2222-2222-2222-222222222222",
+        accountType: "available",
+        direction: "credit",
+        amountCents: 1000,
+      },
     ],
     initiatedBy: null,
   };
@@ -63,9 +95,24 @@ Deno.test("a three-leg balanced transfer (escrow release + fee split) passes the
   const request: TransferRequest = {
     type: "payout",
     legs: [
-      { walletId: "11111111-1111-1111-1111-111111111111", accountType: "escrowed", direction: "debit", amountCents: 1000 },
-      { walletId: "22222222-2222-2222-2222-222222222222", accountType: "available", direction: "credit", amountCents: 925 },
-      { walletId: null, accountType: "platform_fee_revenue", direction: "credit", amountCents: 75 },
+      {
+        walletId: "11111111-1111-1111-1111-111111111111",
+        accountType: "escrowed",
+        direction: "debit",
+        amountCents: 1000,
+      },
+      {
+        walletId: "22222222-2222-2222-2222-222222222222",
+        accountType: "available",
+        direction: "credit",
+        amountCents: 925,
+      },
+      {
+        walletId: null,
+        accountType: "platform_fee_revenue",
+        direction: "credit",
+        amountCents: 75,
+      },
     ],
     initiatedBy: null,
   };
@@ -73,6 +120,10 @@ Deno.test("a three-leg balanced transfer (escrow release + fee split) passes the
   try {
     await postBalancedEntries(request);
   } catch (err) {
-    assertEquals(err instanceof WalletError, false, "a correctly-balanced 3-leg transfer must not be rejected as unbalanced");
+    assertEquals(
+      err instanceof WalletError,
+      false,
+      "a correctly-balanced 3-leg transfer must not be rejected as unbalanced",
+    );
   }
 });

@@ -1,6 +1,9 @@
 // supabase/functions/_wallet/statements.ts
 
-import { listTransactions, type TransactionHistoryFilter } from "./repository.ts";
+import {
+  listTransactions,
+  type TransactionHistoryFilter,
+} from "./repository.ts";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 
 export interface StatementLine {
@@ -24,7 +27,13 @@ export async function generateStatement(
   walletId: string,
   fromDate: string,
   toDate: string,
-): Promise<{ lines: StatementLine[]; openingBalanceCents: number; closingBalanceCents: number }> {
+): Promise<
+  {
+    lines: StatementLine[];
+    openingBalanceCents: number;
+    closingBalanceCents: number;
+  }
+> {
   const supabase = getServiceRoleClient();
 
   const { data: openingRows } = await supabase
@@ -35,11 +44,17 @@ export async function generateStatement(
     .lt("created_at", fromDate);
 
   const openingBalanceCents = (openingRows ?? []).reduce(
-    (sum, row) => sum + (row.direction === "credit" ? row.amount_cents : -row.amount_cents),
+    (sum, row) =>
+      sum + (row.direction === "credit" ? row.amount_cents : -row.amount_cents),
     0,
   );
 
-  const filter: TransactionHistoryFilter = { walletId, fromDate, toDate, limit: 10_000 };
+  const filter: TransactionHistoryFilter = {
+    walletId,
+    fromDate,
+    toDate,
+    limit: 10_000,
+  };
   const transactions = await listTransactions(filter);
 
   // listTransactions returns newest-first; a statement reads chronologically.
@@ -57,7 +72,9 @@ export async function generateStatement(
       .eq("account_type", "available");
 
     const netForThisWallet = (legs ?? []).reduce(
-      (sum, leg) => sum + (leg.direction === "credit" ? leg.amount_cents : -leg.amount_cents),
+      (sum, leg) =>
+        sum +
+        (leg.direction === "credit" ? leg.amount_cents : -leg.amount_cents),
       0,
     );
     runningBalance += netForThisWallet;
@@ -84,16 +101,36 @@ export async function generateStatement(
  * a not-yet-implemented body, since a real PDF library is a genuine new
  * dependency decision this phase shouldn't make unilaterally.
  */
-export function statementToCsv(statement: { lines: StatementLine[]; openingBalanceCents: number; closingBalanceCents: number }): string {
-  const header = "transaction_id,type,status,amount_cents,created_at,running_balance_cents";
+export function statementToCsv(
+  statement: {
+    lines: StatementLine[];
+    openingBalanceCents: number;
+    closingBalanceCents: number;
+  },
+): string {
+  const header =
+    "transaction_id,type,status,amount_cents,created_at,running_balance_cents";
   const rows = statement.lines.map((l) =>
-    [l.transactionId, l.type, l.status, l.amountCents, l.createdAt, l.runningBalanceCents].join(","),
+    [
+      l.transactionId,
+      l.type,
+      l.status,
+      l.amountCents,
+      l.createdAt,
+      l.runningBalanceCents,
+    ].join(",")
   );
   return [header, ...rows].join("\n");
 }
 
 export interface StatementPdfExporter {
-  export(statement: { lines: StatementLine[]; openingBalanceCents: number; closingBalanceCents: number }): Promise<Uint8Array>;
+  export(
+    statement: {
+      lines: StatementLine[];
+      openingBalanceCents: number;
+      closingBalanceCents: number;
+    },
+  ): Promise<Uint8Array>;
 }
 
 /** Not implemented — see this module's header comment. Throws clearly

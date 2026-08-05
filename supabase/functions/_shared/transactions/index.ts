@@ -43,7 +43,9 @@ function getSqlClient(): Sql {
  * Any thrown error automatically rolls back, per the `postgres` driver's
  * `sql.begin()` semantics.
  */
-export async function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
+export async function withTransaction<T>(
+  fn: (sql: Sql) => Promise<T>,
+): Promise<T> {
   const sql = getSqlClient();
   return sql.begin(async (txSql) => fn(txSql as unknown as Sql));
 }
@@ -74,7 +76,10 @@ function isRetryableByDefault(err: unknown): boolean {
  * already had a side effect without idempotency protection — combine with
  * idempotency/index.ts for anything that mutates state.
  */
-export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {},
+): Promise<T> {
   const maxAttempts = options.maxAttempts ?? config.retries.defaultMaxAttempts;
   const baseDelayMs = options.baseDelayMs ?? config.retries.baseDelayMs;
   const shouldRetry = options.shouldRetry ?? isRetryableByDefault;
@@ -90,9 +95,12 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
         throw err;
       }
       const delay = baseDelayMs * 2 ** (attempt - 1);
-      logger.warn(`Retry attempt ${attempt}/${maxAttempts} after error, waiting ${delay}ms`, {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logger.warn(
+        `Retry attempt ${attempt}/${maxAttempts} after error, waiting ${delay}ms`,
+        {
+          error: err instanceof Error ? err.message : String(err),
+        },
+      );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }

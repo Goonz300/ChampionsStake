@@ -14,7 +14,13 @@ interface MismatchRecord {
 }
 
 const PAGE_SIZE = 500;
-const ACCOUNT_TYPES = ["available", "escrowed", "pending", "bonus", "referral"] as const;
+const ACCOUNT_TYPES = [
+  "available",
+  "escrowed",
+  "pending",
+  "bonus",
+  "referral",
+] as const;
 
 /**
  * Runs a full reconciliation sweep: for every wallet, compares its 5 cached
@@ -40,12 +46,18 @@ export async function runReconciliation(triggeredBy: string | null): Promise<{
 
   const { data: runRow, error: startError } = await supabase
     .from("wallet_reconciliation_runs")
-    .insert({ started_at: startedAt, triggered_by: triggeredBy, status: "completed" })
+    .insert({
+      started_at: startedAt,
+      triggered_by: triggeredBy,
+      status: "completed",
+    })
     .select("id")
     .single();
 
   if (startError || !runRow) {
-    throw new Error(`Failed to start reconciliation run: ${startError?.message}`);
+    throw new Error(
+      `Failed to start reconciliation run: ${startError?.message}`,
+    );
   }
 
   const runId = runRow.id as string;
@@ -70,10 +82,13 @@ export async function runReconciliation(triggeredBy: string | null): Promise<{
         };
 
         for (const accountType of ACCOUNT_TYPES) {
-          const { data: fnResult, error: fnError } = await supabase.rpc("fn_wallet_balance", {
-            p_wallet_id: wallet.walletId,
-            p_account_type: accountType,
-          });
+          const { data: fnResult, error: fnError } = await supabase.rpc(
+            "fn_wallet_balance",
+            {
+              p_wallet_id: wallet.walletId,
+              p_account_type: accountType,
+            },
+          );
 
           if (fnError) {
             logger.error("Reconciliation: fn_wallet_balance call failed", {
@@ -103,16 +118,24 @@ export async function runReconciliation(triggeredBy: string | null): Promise<{
       if (page.length < PAGE_SIZE) break;
     }
 
-    const mismatchedWalletIds = [...new Set(mismatches.map((m) => m.wallet_id))];
+    const mismatchedWalletIds = [
+      ...new Set(mismatches.map((m) => m.wallet_id)),
+    ];
     for (const walletId of mismatchedWalletIds) {
-      await freezeWallet(walletId, "Reconciliation mismatch detected — frozen pending manual review.", null);
+      await freezeWallet(
+        walletId,
+        "Reconciliation mismatch detected — frozen pending manual review.",
+        null,
+      );
     }
 
     await supabase
       .from("wallet_reconciliation_runs")
       .update({
         completed_at: new Date().toISOString(),
-        status: mismatches.length > 0 ? "completed_with_mismatches" : "completed",
+        status: mismatches.length > 0
+          ? "completed_with_mismatches"
+          : "completed",
         wallets_checked: walletsChecked,
         mismatches_found: mismatches.length,
         wallets_frozen: mismatchedWalletIds.length,

@@ -26,4 +26,9 @@ export type NotificationCategory =
   | "platform"
   | "announcements";
 
-export type PresenceStatus = "online" | "offline" | "away" | "in_match" | "ready";
+export type PresenceStatus =
+  | "online"
+  | "offline"
+  | "away"
+  | "in_match"
+  | "ready";

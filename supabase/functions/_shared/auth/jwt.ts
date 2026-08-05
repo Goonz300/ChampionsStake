@@ -17,7 +17,9 @@ export interface AuthenticatedUser {
  * exactly the kind of duplicated, easy-to-get-subtly-wrong security code
  * this shared framework exists to prevent.
  */
-export async function verifyRequestJwt(request: Request): Promise<AuthenticatedUser> {
+export async function verifyRequestJwt(
+  request: Request,
+): Promise<AuthenticatedUser> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     throw new AuthenticationError("Missing or malformed Authorization header.");
@@ -40,7 +42,9 @@ export async function verifyRequestJwt(request: Request): Promise<AuthenticatedU
  * authenticated and anonymous access (e.g. browsing public challenges).
  * A malformed/expired token, as opposed to a missing one, still throws.
  */
-export async function verifyOptionalRequestJwt(request: Request): Promise<AuthenticatedUser | null> {
+export async function verifyOptionalRequestJwt(
+  request: Request,
+): Promise<AuthenticatedUser | null> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader) return null;
   return verifyRequestJwt(request);

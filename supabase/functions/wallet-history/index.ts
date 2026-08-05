@@ -5,11 +5,23 @@
 // Also serves as the "Get Statement" API when ?format=statement is passed.
 
 import { z } from "npm:zod@3.24.1";
-import { withEdgeFunction, type EdgeContext } from "../_shared/middleware/index.ts";
-import { requirePlayer, requireSupportStaff } from "../_shared/permissions/index.ts";
+import {
+  type EdgeContext,
+  withEdgeFunction,
+} from "../_shared/middleware/index.ts";
+import {
+  requirePlayer,
+  requireSupportStaff,
+} from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
-import { paginationQuerySchema, isoDateSchema } from "../_shared/validation/schemas.ts";
-import { successResponse, paginatedResponse } from "../_shared/response/index.ts";
+import {
+  isoDateSchema,
+  paginationQuerySchema,
+} from "../_shared/validation/schemas.ts";
+import {
+  paginatedResponse,
+  successResponse,
+} from "../_shared/response/index.ts";
 import { getWalletByUserIdOrThrow } from "../_wallet/repository.ts";
 import { listTransactions } from "../_wallet/repository.ts";
 import { generateStatement, statementToCsv } from "../_wallet/statements.ts";
@@ -48,10 +60,11 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       limit: query.limit,
     });
 
-    const nextCursor =
-      transactions.length === query.limit
-        ? ((transactions[transactions.length - 1] as { created_at: string } | undefined)?.created_at ?? null)
-        : null;
+    const nextCursor = transactions.length === query.limit
+      ? ((transactions[transactions.length - 1] as
+        | { created_at: string }
+        | undefined)?.created_at ?? null)
+      : null;
 
     return paginatedResponse(transactions, { next_cursor: nextCursor });
   }
@@ -63,7 +76,10 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   if (query.format === "csv") {
     return new Response(statementToCsv(statement), {
       status: 200,
-      headers: { "Content-Type": "text/csv", "Content-Disposition": "attachment; filename=statement.csv" },
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": "attachment; filename=statement.csv",
+      },
     });
   }
 
@@ -75,7 +91,11 @@ Deno.serve(
     {
       functionName: "wallet-history",
       auth: "required",
-      rateLimit: (ctx) => ({ key: `wallet-history:${ctx.user?.id}`, windowSeconds: 60, maxRequests: 30 }),
+      rateLimit: (ctx) => ({
+        key: `wallet-history:${ctx.user?.id}`,
+        windowSeconds: 60,
+        maxRequests: 30,
+      }),
     },
     handler,
   ),

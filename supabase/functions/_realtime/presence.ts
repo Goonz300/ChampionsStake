@@ -32,7 +32,10 @@ export async function updatePresence(
 
 export async function getPresence(userId: string) {
   const supabase = getServiceRoleClient();
-  const { data } = await supabase.from("v_public_presence").select("*").eq("user_id", userId).maybeSingle();
+  const { data } = await supabase.from("v_public_presence").select("*").eq(
+    "user_id",
+    userId,
+  ).maybeSingle();
   return data;
 }
 
@@ -47,14 +50,18 @@ export async function getPresence(userId: string) {
  */
 export async function markOffline(userId: string): Promise<void> {
   const supabase = getServiceRoleClient();
-  await supabase.from("user_presence").update({ status: "offline" }).eq("user_id", userId);
+  await supabase.from("user_presence").update({ status: "offline" }).eq(
+    "user_id",
+    userId,
+  );
 }
 
 const STALE_PRESENCE_MINUTES = 2;
 
 export async function sweepStalePresence(): Promise<{ markedOffline: number }> {
   const supabase = getServiceRoleClient();
-  const cutoff = new Date(Date.now() - STALE_PRESENCE_MINUTES * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - STALE_PRESENCE_MINUTES * 60 * 1000)
+    .toISOString();
 
   const { data, error } = await supabase
     .from("user_presence")
@@ -63,6 +70,8 @@ export async function sweepStalePresence(): Promise<{ markedOffline: number }> {
     .lt("last_seen_at", cutoff)
     .select("user_id");
 
-  if (error) throw new Error(`Failed to sweep stale presence: ${error.message}`);
+  if (error) {
+    throw new Error(`Failed to sweep stale presence: ${error.message}`);
+  }
   return { markedOffline: (data ?? []).length };
 }

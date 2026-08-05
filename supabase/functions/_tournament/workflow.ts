@@ -25,24 +25,37 @@
 
 import { z } from "npm:zod@3.24.1";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
-import { ConflictError, AuthorizationError, TournamentError } from "../_shared/errors/index.ts";
+import {
+  AuthorizationError,
+  ConflictError,
+  TournamentError,
+} from "../_shared/errors/index.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { lockToEscrow, releaseFromEscrow } from "../_wallet/transfer.ts";
 import { getWalletIdForUser } from "../_challenge/repository.ts";
-import { readyCheck as challengeReadyCheck, startMatch as challengeStartMatch, declareWinner as challengeDeclareWinner, completeChallenge } from "../_challenge/escrow-transition.ts";
-import { getChallengeOrThrow, updateChallengeStatus, recordChallengeEvent } from "../_challenge/repository.ts";
 import {
-  getTournamentOrThrow,
-  updateTournamentStatus,
-  listRegistrations,
-  getRegistration,
+  completeChallenge,
+  declareWinner as challengeDeclareWinner,
+  readyCheck as challengeReadyCheck,
+  startMatch as challengeStartMatch,
+} from "../_challenge/escrow-transition.ts";
+import {
+  getChallengeOrThrow,
+  recordChallengeEvent,
+  updateChallengeStatus,
+} from "../_challenge/repository.ts";
+import {
   createRound,
   getCurrentRound,
-  updateRoundStatus,
+  getRegistration,
+  getTournamentOrThrow,
   listMatchesForRound,
+  listRegistrations,
+  updateRoundStatus,
+  updateTournamentStatus,
 } from "./repository.ts";
-import { getBracketGenerator, computeNextRound } from "./bracket.ts";
+import { computeNextRound, getBracketGenerator } from "./bracket.ts";
 
 export const createTournamentSchema = z.object({
   gameId: z.string().uuid(),
@@ -56,7 +69,10 @@ export const createTournamentSchema = z.object({
 });
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
 
-export async function createTournament(adminId: string, input: CreateTournamentInput): Promise<{ id: string }> {
+export async function createTournament(
+  adminId: string,
+  input: CreateTournamentInput,
+): Promise<{ id: string }> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("tournaments")
@@ -75,7 +91,9 @@ export async function createTournament(adminId: string, input: CreateTournamentI
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(`Failed to create tournament: ${error?.message}`);
+  if (error || !data) {
+    throw new Error(`Failed to create tournament: ${error?.message}`);
+  }
 
   await recordAudit({
     actorId: adminId,
@@ -85,7 +103,11 @@ export async function createTournament(adminId: string, input: CreateTournamentI
     targetTable: "tournaments",
     targetId: data.id,
   });
-  await emit({ type: "TournamentStarted", payload: { tournamentId: data.id, event: "TournamentCreated" }, emittedBy: "tournament-create" });
+  await emit({
+    type: "TournamentStarted",
+    payload: { tournamentId: data.id, event: "TournamentCreated" },
+    emittedBy: "tournament-create",
+  });
 
   return { id: data.id };
 }
@@ -93,12 +115,20 @@ export async function createTournament(adminId: string, input: CreateTournamentI
 export async function publishTournament(tournamentId: string): Promise<void> {
   await updateTournamentStatus(tournamentId, "published");
   await updateTournamentStatus(tournamentId, "registration");
-  await emit({ type: "TournamentStarted", payload: { tournamentId, event: "RegistrationOpened" }, emittedBy: "tournament-publish" });
+  await emit({
+    type: "TournamentStarted",
+    payload: { tournamentId, event: "RegistrationOpened" },
+    emittedBy: "tournament-publish",
+  });
 }
 
 export async function closeRegistration(tournamentId: string): Promise<void> {
   await updateTournamentStatus(tournamentId, "registration_closed");
-  await emit({ type: "TournamentStarted", payload: { tournamentId, event: "RegistrationClosed" }, emittedBy: "tournament-register" });
+  await emit({
+    type: "TournamentStarted",
+    payload: { tournamentId, event: "RegistrationClosed" },
+    emittedBy: "tournament-register",
+  });
 }
 
 /**
@@ -112,27 +142,48 @@ export async function closeRegistration(tournamentId: string): Promise<void> {
  */
 export async function openCheckIn(tournamentId: string): Promise<void> {
   await updateTournamentStatus(tournamentId, "check_in");
-  await emit({ type: "TournamentStarted", payload: { tournamentId, event: "CheckInOpened" }, emittedBy: "tournament-checkin" });
+  await emit({
+    type: "TournamentStarted",
+    payload: { tournamentId, event: "CheckInOpened" },
+    emittedBy: "tournament-checkin",
+  });
 }
 
 /** Registers a player, capturing their entry fee into the tournament-level
  * escrow (WALLET-001's lockToEscrow, called exactly once per registration). */
-export async function registerForTournament(tournamentId: string, userId: string, idempotencyKey: string): Promise<void> {
+export async function registerForTournament(
+  tournamentId: string,
+  userId: string,
+  idempotencyKey: string,
+): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (tournament.status !== "registration") {
-    throw new ConflictError(`Tournament ${tournamentId} is not open for registration (status: ${tournament.status}).`);
+    throw new ConflictError(
+      `Tournament ${tournamentId} is not open for registration (status: ${tournament.status}).`,
+    );
   }
 
   const existing = await getRegistration(tournamentId, userId);
-  if (existing) throw new ConflictError("You are already registered for this tournament.");
+  if (existing) {
+    throw new ConflictError("You are already registered for this tournament.");
+  }
 
   if (tournament.entryFeeCents > 0) {
     const walletId = await getWalletIdForUser(userId);
-    await lockToEscrow(walletId, tournament.entryFeeCents, { table: "tournaments", id: tournamentId }, userId, idempotencyKey);
+    await lockToEscrow(
+      walletId,
+      tournament.entryFeeCents,
+      { table: "tournaments", id: tournamentId },
+      userId,
+      idempotencyKey,
+    );
   }
 
   const supabase = getServiceRoleClient();
-  const { error } = await supabase.from("tournament_registrations").insert({ tournament_id: tournamentId, user_id: userId });
+  const { error } = await supabase.from("tournament_registrations").insert({
+    tournament_id: tournamentId,
+    user_id: userId,
+  });
   if (error) throw new Error(`Failed to register: ${error.message}`);
 
   await recordAudit({
@@ -147,14 +198,21 @@ export async function registerForTournament(tournamentId: string, userId: string
 
 /** Withdraws a registration, refunding the entry fee — allowed only
  * pre-check-in (Business Rules §5: "full refund"). */
-export async function withdrawRegistration(tournamentId: string, userId: string): Promise<void> {
+export async function withdrawRegistration(
+  tournamentId: string,
+  userId: string,
+): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (!["registration", "registration_closed"].includes(tournament.status)) {
-    throw new ConflictError("Withdrawal is only allowed before check-in begins.");
+    throw new ConflictError(
+      "Withdrawal is only allowed before check-in begins.",
+    );
   }
 
   const registration = await getRegistration(tournamentId, userId);
-  if (!registration) throw new ConflictError("You are not registered for this tournament.");
+  if (!registration) {
+    throw new ConflictError("You are not registered for this tournament.");
+  }
 
   if (tournament.entryFeeCents > 0) {
     const walletId = await getWalletIdForUser(userId);
@@ -171,7 +229,10 @@ export async function withdrawRegistration(tournamentId: string, userId: string)
   }
 
   const supabase = getServiceRoleClient();
-  await supabase.from("tournament_registrations").delete().eq("tournament_id", tournamentId).eq("user_id", userId);
+  await supabase.from("tournament_registrations").delete().eq(
+    "tournament_id",
+    tournamentId,
+  ).eq("user_id", userId);
 
   await recordAudit({
     actorId: userId,
@@ -186,10 +247,15 @@ export async function withdrawRegistration(tournamentId: string, userId: string)
 /** Player check-in. No-shows are handled by the check-in-timeout scheduler
  * (tournament-checkin Edge Function's sweep mode), which forfeits and
  * refunds them in full (Business Rules §5 — "no documented penalty in v1"). */
-export async function checkIn(tournamentId: string, userId: string): Promise<void> {
+export async function checkIn(
+  tournamentId: string,
+  userId: string,
+): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (tournament.status !== "check_in") {
-    throw new ConflictError(`Tournament ${tournamentId} is not currently in check-in (status: ${tournament.status}).`);
+    throw new ConflictError(
+      `Tournament ${tournamentId} is not currently in check-in (status: ${tournament.status}).`,
+    );
   }
 
   const supabase = getServiceRoleClient();
@@ -212,9 +278,13 @@ export async function checkIn(tournamentId: string, userId: string): Promise<voi
 
 /** Forfeits every registration that never checked in, refunding their
  * entry fee in full — called by the check-in-timeout scheduler. */
-export async function forfeitNoShows(tournamentId: string): Promise<{ forfeited: number }> {
+export async function forfeitNoShows(
+  tournamentId: string,
+): Promise<{ forfeited: number }> {
   const registrations = await listRegistrations(tournamentId);
-  const noShows = registrations.filter((r) => r.checkedInAt === null && !r.forfeited);
+  const noShows = registrations.filter((r) =>
+    r.checkedInAt === null && !r.forfeited
+  );
   const tournament = await getTournamentOrThrow(tournamentId);
   const supabase = getServiceRoleClient();
 
@@ -248,15 +318,21 @@ export async function forfeitNoShows(tournamentId: string): Promise<{ forfeited:
 export async function generateBracket(tournamentId: string): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (tournament.status !== "check_in") {
-    throw new ConflictError(`Bracket can only be generated from check_in (current: ${tournament.status}).`);
+    throw new ConflictError(
+      `Bracket can only be generated from check_in (current: ${tournament.status}).`,
+    );
   }
 
   const supabase = getServiceRoleClient();
   const registrations = await listRegistrations(tournamentId);
-  const checkedIn = registrations.filter((r) => r.checkedInAt !== null && !r.forfeited);
+  const checkedIn = registrations.filter((r) =>
+    r.checkedInAt !== null && !r.forfeited
+  );
 
   if (checkedIn.length < 2) {
-    throw new TournamentError("At least 2 checked-in players are required to generate a bracket.");
+    throw new TournamentError(
+      "At least 2 checked-in players are required to generate a bracket.",
+    );
   }
 
   // Seed by trust_score descending (Business Rules §5), ties broken by
@@ -266,8 +342,12 @@ export async function generateBracket(tournamentId: string): Promise<void> {
     .select("id, trust_score")
     .in("id", checkedIn.map((r) => r.userId));
 
-  const trustById = new Map((profiles ?? []).map((p) => [p.id, p.trust_score as number]));
-  const seeded = [...checkedIn].sort((a, b) => (trustById.get(b.userId) ?? 0) - (trustById.get(a.userId) ?? 0));
+  const trustById = new Map(
+    (profiles ?? []).map((p) => [p.id, p.trust_score as number]),
+  );
+  const seeded = [...checkedIn].sort((a, b) =>
+    (trustById.get(b.userId) ?? 0) - (trustById.get(a.userId) ?? 0)
+  );
 
   for (let i = 0; i < seeded.length; i++) {
     await supabase
@@ -282,10 +362,20 @@ export async function generateBracket(tournamentId: string): Promise<void> {
   const firstRoundMatches = generator.generate(seeded);
 
   await updateTournamentStatus(tournamentId, "bracket_generated");
-  const roundId = await createRound(tournamentId, 1, roundName(1, firstRoundMatches.length));
+  const roundId = await createRound(
+    tournamentId,
+    1,
+    roundName(1, firstRoundMatches.length),
+  );
 
   for (const match of firstRoundMatches) {
-    await createMatchOrAutoAdvance(tournamentId, roundId, match.bracketPosition, match.playerAId, match.playerBId);
+    await createMatchOrAutoAdvance(
+      tournamentId,
+      roundId,
+      match.bracketPosition,
+      match.playerAId,
+      match.playerBId,
+    );
   }
 
   await recordAudit({
@@ -295,9 +385,16 @@ export async function generateBracket(tournamentId: string): Promise<void> {
     category: "tournament",
     targetTable: "tournaments",
     targetId: tournamentId,
-    metadata: { player_count: seeded.length, match_count: firstRoundMatches.length },
+    metadata: {
+      player_count: seeded.length,
+      match_count: firstRoundMatches.length,
+    },
   });
-  await emit({ type: "TournamentStarted", payload: { tournamentId, event: "BracketGenerated" }, emittedBy: "tournament-generate-bracket" });
+  await emit({
+    type: "TournamentStarted",
+    payload: { tournamentId, event: "BracketGenerated" },
+    emittedBy: "tournament-generate-bracket",
+  });
 }
 
 function roundName(roundNumber: number, matchCount: number): string {
@@ -351,7 +448,11 @@ async function createMatchOrAutoAdvance(
     .select("id")
     .single();
 
-  if (error || !challengeRow) throw new Error(`Failed to create tournament match challenge: ${error?.message}`);
+  if (error || !challengeRow) {
+    throw new Error(
+      `Failed to create tournament match challenge: ${error?.message}`,
+    );
+  }
 
   await supabase.from("challenge_participants").insert([
     { challenge_id: challengeRow.id, user_id: playerAId, role: "creator" },
@@ -365,7 +466,9 @@ async function createMatchOrAutoAdvance(
     challenge_id: challengeRow.id,
   });
 
-  await recordChallengeEvent(challengeRow.id, "ChallengeCreated", null, { tournament_id: tournamentId });
+  await recordChallengeEvent(challengeRow.id, "ChallengeCreated", null, {
+    tournament_id: tournamentId,
+  });
 }
 
 export async function startRound(tournamentId: string): Promise<void> {
@@ -380,7 +483,11 @@ export async function startRound(tournamentId: string): Promise<void> {
     targetTable: "tournament_rounds",
     targetId: round.id,
   });
-  await emit({ type: "TournamentRoundCompleted", payload: { tournamentId, event: "RoundStarted", roundId: round.id }, emittedBy: "tournament-start-round" });
+  await emit({
+    type: "TournamentRoundCompleted",
+    payload: { tournamentId, event: "RoundStarted", roundId: round.id },
+    emittedBy: "tournament-start-round",
+  });
 }
 
 /** Delegates ready/start/declare-winner to CHALLENGE-001's existing
@@ -396,14 +503,20 @@ export const declareMatchWinner = challengeDeclareWinner;
  * been declared (challengeDeclareWinner), typically by the losing
  * participant confirming or by the round-completion sweep after a timeout.
  */
-export async function resolveMatchNoMoney(challengeId: string): Promise<string> {
+export async function resolveMatchNoMoney(
+  challengeId: string,
+): Promise<string> {
   const challenge = await getChallengeOrThrow(challengeId);
   if (!challenge.winnerSubmittedBy) {
-    throw new ConflictError(`Challenge ${challengeId} has no winner submitted yet.`);
+    throw new ConflictError(
+      `Challenge ${challengeId} has no winner submitted yet.`,
+    );
   }
 
   if (challenge.status === "winner_submitted") {
-    await updateChallengeStatus(challengeId, { status: "awaiting_confirmation" });
+    await updateChallengeStatus(challengeId, {
+      status: "awaiting_confirmation",
+    });
   }
   await updateChallengeStatus(challengeId, { status: "released" });
   await completeChallenge(challengeId);
@@ -424,10 +537,17 @@ export async function resolveMatchNoMoney(challengeId: string): Promise<string> 
  * override cases (e.g. a disqualification). This is what
  * tournament-advance-player exposes.
  */
-export async function advancePlayer(matchId: string, winnerId: string, actorId: string | null): Promise<void> {
+export async function advancePlayer(
+  matchId: string,
+  winnerId: string,
+  actorId: string | null,
+): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { data: match, error } = await supabase.from("tournament_matches").select("*").eq("id", matchId).maybeSingle();
-  if (error || !match) throw new ConflictError(`Tournament match ${matchId} not found.`);
+  const { data: match, error } = await supabase.from("tournament_matches")
+    .select("*").eq("id", matchId).maybeSingle();
+  if (error || !match) {
+    throw new ConflictError(`Tournament match ${matchId} not found.`);
+  }
 
   await recordAudit({
     actorId,
@@ -438,10 +558,16 @@ export async function advancePlayer(matchId: string, winnerId: string, actorId: 
     targetId: matchId,
     metadata: { winner_id: winnerId },
   });
-  await emit({ type: "TournamentRoundCompleted", payload: { matchId, event: "PlayerAdvanced", winnerId }, emittedBy: "tournament-advance-player" });
+  await emit({
+    type: "TournamentRoundCompleted",
+    payload: { matchId, event: "PlayerAdvanced", winnerId },
+    emittedBy: "tournament-advance-player",
+  });
 }
 
-export async function completeRound(tournamentId: string): Promise<{ finalRoundReached: boolean }> {
+export async function completeRound(
+  tournamentId: string,
+): Promise<{ finalRoundReached: boolean }> {
   const round = await getCurrentRound(tournamentId);
   const matches = await listMatchesForRound(round.id);
   const supabase = getServiceRoleClient();
@@ -460,18 +586,26 @@ export async function completeRound(tournamentId: string): Promise<{ finalRoundR
     }
 
     const challenge = match.challenges;
-    if (challenge?.status === "winner_submitted" || challenge?.status === "awaiting_confirmation") {
+    if (
+      challenge?.status === "winner_submitted" ||
+      challenge?.status === "awaiting_confirmation"
+    ) {
       const winnerId = await resolveMatchNoMoney(match.challenge_id);
       results.push({ bracketPosition: match.bracket_position, winnerId });
 
-      const loserId = winnerId === challenge.creator_id ? challenge.opponent_id : challenge.creator_id;
+      const loserId = winnerId === challenge.creator_id
+        ? challenge.opponent_id
+        : challenge.creator_id;
       await supabase
         .from("tournament_registrations")
         .update({ eliminated: true })
         .eq("tournament_id", tournamentId)
         .eq("user_id", loserId);
     } else if (challenge?.status === "completed") {
-      results.push({ bracketPosition: match.bracket_position, winnerId: challenge.winner_submitted_by });
+      results.push({
+        bracketPosition: match.bracket_position,
+        winnerId: challenge.winner_submitted_by,
+      });
     }
   }
 
@@ -485,7 +619,11 @@ export async function completeRound(tournamentId: string): Promise<{ finalRoundR
     targetTable: "tournament_rounds",
     targetId: round.id,
   });
-  await emit({ type: "TournamentRoundCompleted", payload: { tournamentId, roundId: round.id }, emittedBy: "tournament-complete-round" });
+  await emit({
+    type: "TournamentRoundCompleted",
+    payload: { tournamentId, roundId: round.id },
+    emittedBy: "tournament-complete-round",
+  });
 
   if (results.length <= 1) {
     // The final just completed.
@@ -494,10 +632,20 @@ export async function completeRound(tournamentId: string): Promise<{ finalRoundR
   }
 
   const nextRoundMatches = computeNextRound(round.round_number, results);
-  const nextRoundId = await createRound(tournamentId, round.round_number + 1, roundName(round.round_number + 1, nextRoundMatches.length));
+  const nextRoundId = await createRound(
+    tournamentId,
+    round.round_number + 1,
+    roundName(round.round_number + 1, nextRoundMatches.length),
+  );
 
   for (const match of nextRoundMatches) {
-    await createMatchOrAutoAdvance(tournamentId, nextRoundId, match.bracketPosition, match.playerAId, match.playerBId);
+    await createMatchOrAutoAdvance(
+      tournamentId,
+      nextRoundId,
+      match.bracketPosition,
+      match.playerAId,
+      match.playerBId,
+    );
   }
 
   await updateTournamentStatus(tournamentId, "round_active");
@@ -514,10 +662,14 @@ export async function completeRound(tournamentId: string): Promise<{ finalRoundR
  * function's job strictly "recognize the tournament is over," not "move
  * the money," which stays WALLET-001's job even here.
  */
-export async function triggerPrizeDistribution(tournamentId: string): Promise<void> {
+export async function triggerPrizeDistribution(
+  tournamentId: string,
+): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (tournament.status !== "prize_distribution") {
-    throw new ConflictError(`Tournament ${tournamentId} is not awaiting prize distribution (status: ${tournament.status}).`);
+    throw new ConflictError(
+      `Tournament ${tournamentId} is not awaiting prize distribution (status: ${tournament.status}).`,
+    );
   }
 
   await recordAudit({
@@ -527,30 +679,51 @@ export async function triggerPrizeDistribution(tournamentId: string): Promise<vo
     category: "financial",
     targetTable: "tournaments",
     targetId: tournamentId,
-    metadata: { payout_structure: tournament.payoutStructure, prize_pool_cents: tournament.prizePoolCents },
+    metadata: {
+      payout_structure: tournament.payoutStructure,
+      prize_pool_cents: tournament.prizePoolCents,
+    },
   });
   await emit({
     type: "TournamentStarted",
-    payload: { tournamentId, event: "PrizeDistributionTriggered", payoutStructure: tournament.payoutStructure },
+    payload: {
+      tournamentId,
+      event: "PrizeDistributionTriggered",
+      payoutStructure: tournament.payoutStructure,
+    },
     emittedBy: "tournament-complete",
   });
 
   await updateTournamentStatus(tournamentId, "completed");
-  await emit({ type: "TournamentStarted", payload: { tournamentId, event: "TournamentCompleted" }, emittedBy: "tournament-complete" });
+  await emit({
+    type: "TournamentStarted",
+    payload: { tournamentId, event: "TournamentCompleted" },
+    emittedBy: "tournament-complete",
+  });
 }
 
 export async function archiveTournament(tournamentId: string): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (!["completed", "cancelled"].includes(tournament.status)) {
-    throw new ConflictError(`Tournament ${tournamentId} is not archivable (status: ${tournament.status}).`);
+    throw new ConflictError(
+      `Tournament ${tournamentId} is not archivable (status: ${tournament.status}).`,
+    );
   }
   await updateTournamentStatus(tournamentId, "archived");
 }
 
-export async function cancelTournament(tournamentId: string, actorId: string): Promise<void> {
+export async function cancelTournament(
+  tournamentId: string,
+  actorId: string,
+): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
-  if (!["draft", "published", "registration", "registration_closed", "check_in"].includes(tournament.status)) {
-    throw new AuthorizationError("This tournament can no longer be cancelled — a bracket has already been generated.");
+  if (
+    !["draft", "published", "registration", "registration_closed", "check_in"]
+      .includes(tournament.status)
+  ) {
+    throw new AuthorizationError(
+      "This tournament can no longer be cancelled — a bracket has already been generated.",
+    );
   }
 
   const registrations = await listRegistrations(tournamentId);

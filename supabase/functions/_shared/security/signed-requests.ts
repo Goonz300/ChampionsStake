@@ -17,7 +17,11 @@ async function hmacSha256Hex(secret: string, message: string): Promise<string> {
     false,
     ["sign"],
   );
-  const signatureBuffer = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  const signatureBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(message),
+  );
   return Array.from(new Uint8Array(signatureBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -43,6 +47,9 @@ export async function verifyHmacSignature(
   }
 }
 
-export async function signPayload(payload: string, secret: string): Promise<string> {
+export async function signPayload(
+  payload: string,
+  secret: string,
+): Promise<string> {
   return hmacSha256Hex(secret, payload);
 }

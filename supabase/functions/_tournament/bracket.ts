@@ -21,7 +21,9 @@ export interface BracketGenerator {
  * this just sorts by it.
  */
 function seededOrder(registrations: Registration[]): Registration[] {
-  return [...registrations].sort((a, b) => (a.seed ?? Number.MAX_SAFE_INTEGER) - (b.seed ?? Number.MAX_SAFE_INTEGER));
+  return [...registrations].sort((a, b) =>
+    (a.seed ?? Number.MAX_SAFE_INTEGER) - (b.seed ?? Number.MAX_SAFE_INTEGER)
+  );
 }
 
 function nextPowerOfTwo(n: number): number {
@@ -38,7 +40,9 @@ function nextPowerOfTwo(n: number): number {
  */
 export const singleEliminationGenerator: BracketGenerator = {
   generate(registrations: Registration[]): BracketMatch[] {
-    const eligible = registrations.filter((r) => r.checkedInAt !== null && !r.forfeited);
+    const eligible = registrations.filter((r) =>
+      r.checkedInAt !== null && !r.forfeited
+    );
     const ordered = seededOrder(eligible);
     const bracketSize = nextPowerOfTwo(ordered.length);
 
@@ -57,7 +61,7 @@ export const singleEliminationGenerator: BracketGenerator = {
 
     const positions = seedOrderIndices(bracketSize);
     const slots: (Registration | null)[] = positions.map((seedIndex) =>
-      seedIndex < ordered.length ? ordered[seedIndex] : null,
+      seedIndex < ordered.length ? ordered[seedIndex] : null
     );
 
     const matches: BracketMatch[] = [];
@@ -106,7 +110,9 @@ export const roundRobinGenerator: BracketGenerator = {
   },
 };
 
-export function getBracketGenerator(format: "single_elim" | "double_elim" | "round_robin"): BracketGenerator {
+export function getBracketGenerator(
+  format: "single_elim" | "double_elim" | "round_robin",
+): BracketGenerator {
   switch (format) {
     case "single_elim":
       return singleEliminationGenerator;
@@ -127,7 +133,9 @@ export function computeNextRound(
   currentRoundNumber: number,
   currentRoundResults: { bracketPosition: number; winnerId: string | null }[],
 ): BracketMatch[] {
-  const sorted = [...currentRoundResults].sort((a, b) => a.bracketPosition - b.bracketPosition);
+  const sorted = [...currentRoundResults].sort((a, b) =>
+    a.bracketPosition - b.bracketPosition
+  );
   const matches: BracketMatch[] = [];
 
   for (let i = 0; i < sorted.length; i += 2) {
