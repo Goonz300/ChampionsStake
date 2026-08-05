@@ -15,7 +15,7 @@
 // kind of transfer to ordinary players is a product decision for a future
 // phase to make deliberately, not something to assume here.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

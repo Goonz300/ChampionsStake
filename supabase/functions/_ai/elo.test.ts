@@ -1,6 +1,6 @@
 // supabase/functions/_ai/elo.test.ts
 
-import { assertAlmostEquals, assertEquals } from "jsr:@std/assert@1";
+import { assertAlmostEquals, assertEquals } from "@std/assert";
 import {
   computeDisputeLossAdjustment,
   computeEloUpdate,

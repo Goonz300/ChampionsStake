@@ -37,7 +37,6 @@ import {
 import type { Challenge } from "./types.ts";
 
 const READY_CHECK_WINDOW_MINUTES = 10;
-const OPPONENT_STAKE_CAPTURE_TIMEOUT_MINUTES = 10;
 
 function assertStatus(
   challenge: Challenge,

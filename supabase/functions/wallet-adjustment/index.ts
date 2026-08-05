@@ -5,7 +5,7 @@
 // Both actions live in one function since they share the same resource;
 // Deno.serve dispatches on request.method.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,
@@ -133,7 +133,7 @@ async function handleApprove(ctx: EdgeContext): Promise<Response> {
   });
 }
 
-async function handler(ctx: EdgeContext): Promise<Response> {
+function handler(ctx: EdgeContext): Promise<Response> {
   if (ctx.request.method === "POST") return handlePropose(ctx);
   if (ctx.request.method === "PATCH") return handleApprove(ctx);
 

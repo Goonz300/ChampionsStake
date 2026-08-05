@@ -1,6 +1,6 @@
 // Run with: deno test supabase/functions/_shared/validation/validate.test.ts
-import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
-import { z } from "npm:zod@3.24.1";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { z } from "zod";
 import { parseJsonBody, validateBody, validateQuery } from "./validate.ts";
 import {
   dateRangeSchema,

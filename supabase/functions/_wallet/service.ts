@@ -69,7 +69,7 @@ export async function createWalletIfMissing(
   };
 }
 
-export async function getBalance(userId: string): Promise<WalletBalances> {
+export function getBalance(userId: string): Promise<WalletBalances> {
   return getWalletByUserIdOrThrow(userId);
 }
 

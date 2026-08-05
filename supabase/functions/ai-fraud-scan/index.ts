@@ -1,7 +1,7 @@
 // supabase/functions/ai-fraud-scan/index.ts
 // GET: list flags (staff). POST with scheduled secret: sweep. PATCH: review a flag (staff).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

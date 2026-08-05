@@ -7,7 +7,7 @@
 // trigger, actual balance reads) and is a documented integration-test gap,
 // not silently skipped. See WALLET-001-deliverable.md's Tests section.
 
-import { assertEquals, assertRejects } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "@std/assert";
 import { postBalancedEntries } from "./ledger.ts";
 import { WalletError } from "../_shared/errors/index.ts";
 import type { TransferRequest } from "./types.ts";

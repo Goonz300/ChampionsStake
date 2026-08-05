@@ -1,6 +1,6 @@
 // supabase/functions/admin-wallets/index.ts
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,
@@ -94,7 +94,7 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
   return successResponse({ unfrozen: true });
 }
 
-async function handler(ctx: EdgeContext): Promise<Response> {
+function handler(ctx: EdgeContext): Promise<Response> {
   requireAdministrator(ctx.profile!);
   if (ctx.request.method === "GET") return handleGet(ctx);
   if (ctx.request.method === "POST") return handlePost(ctx);

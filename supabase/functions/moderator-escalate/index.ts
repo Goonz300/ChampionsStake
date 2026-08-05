@@ -3,7 +3,7 @@
 // "escalate" action; this dedicated endpoint exists because the brief
 // names it as its own Edge Function.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

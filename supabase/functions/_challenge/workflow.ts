@@ -6,7 +6,7 @@
 // escrow-transition.ts so that file stays focused on the state machine +
 // money movement, and this one on CRUD/read/scheduling concerns.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import {
   AuthorizationError,

@@ -2,7 +2,7 @@
 // POST with a caller: player checks themselves in.
 // POST with the scheduled shared secret: sweep mode, forfeits no-shows.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

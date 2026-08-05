@@ -4,7 +4,7 @@
 // consistent with the tournament-browse/admin-wallets pattern established
 // in prior phases, rather than one tiny function per metric.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

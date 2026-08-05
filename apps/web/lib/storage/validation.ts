@@ -34,7 +34,9 @@ function matchesMagicBytes(buffer: Uint8Array, mimeType: string): boolean {
     // image/svg+xml, audio/webm) — skip the check rather than falsely reject.
     return true;
   }
-  return signatures.some((sig) => sig.bytes.every((byte, i) => buffer[sig.offset + i] === byte));
+  return signatures.some((sig) =>
+    sig.bytes.every((byte, i) => buffer[sig.offset + i] === byte),
+  );
 }
 
 /**

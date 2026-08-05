@@ -17,11 +17,13 @@ export function AuthCard({
   children: ReactNode;
 }) {
   return (
-    <main className="bg-vv-black flex min-h-screen items-center justify-center p-4">
-      <div className="border-vv-divider bg-vv-surface w-full max-w-md rounded-lg border p-8 shadow-xl">
-        <h1 className="font-orbitron text-vv-neon-green text-center text-2xl font-bold">{title}</h1>
+    <main className="flex min-h-screen items-center justify-center bg-vv-black p-4">
+      <div className="w-full max-w-md rounded-lg border border-vv-divider bg-vv-surface p-8 shadow-xl">
+        <h1 className="font-orbitron text-center text-2xl font-bold text-vv-neon-green">
+          {title}
+        </h1>
         {subtitle && (
-          <p className="font-exo text-vv-text-secondary mt-2 text-center text-sm">{subtitle}</p>
+          <p className="font-exo mt-2 text-center text-sm text-vv-text-secondary">{subtitle}</p>
         )}
         <div className="mt-6">{children}</div>
       </div>

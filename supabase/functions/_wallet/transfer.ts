@@ -70,7 +70,7 @@ async function execute(
 
 /** Moves funds between two wallets' `available` sub-balance (e.g. a
  * peer-to-peer transfer, or a future feature paying out referral credit). */
-export async function walletToWallet(
+export function walletToWallet(
   fromWalletId: string,
   toWalletId: string,
   amountCents: number,
@@ -110,7 +110,7 @@ export async function walletToWallet(
  * Engine's "publish"/"accept" actions will call — this function has no
  * opinion about challenges, stakes, or when locking should happen.
  */
-export async function lockToEscrow(
+export function lockToEscrow(
   walletId: string,
   amountCents: number,
   relatedEntity: RelatedEntityRef,
@@ -225,7 +225,7 @@ export async function releaseFromEscrow(
 }
 
 /** Platform-funded credit into a wallet (e.g. a promotional bonus). */
-export async function platformToWallet(
+export function platformToWallet(
   toWalletId: string,
   amountCents: number,
   type: "bonus_credit" | "tournament_prize",

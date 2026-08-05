@@ -6,7 +6,7 @@
 // that caught a real gap while building this phase — nothing transitioned
 // registration_closed -> check_in until openCheckIn was added.
 
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals } from "@std/assert";
 
 const ALLOWED_EDGES = new Set([
   "draft->published",

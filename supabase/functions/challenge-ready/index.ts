@@ -3,7 +3,7 @@
 // second call from the same user just re-confirms readiness, it doesn't
 // move money or create a new resource).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

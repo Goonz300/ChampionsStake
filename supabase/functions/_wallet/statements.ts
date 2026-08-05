@@ -136,7 +136,7 @@ export interface StatementPdfExporter {
 /** Not implemented — see this module's header comment. Throws clearly
  * rather than silently returning an empty/fake PDF. */
 export const notImplementedPdfExporter: StatementPdfExporter = {
-  async export() {
+  export() {
     throw new Error(
       "PDF statement export is architecture-only in this phase (WALLET-001) — no PDF library has been chosen yet. " +
         "Implement this by picking a Deno-compatible PDF library and filling in this function; the StatementPdfExporter " +

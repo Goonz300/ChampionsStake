@@ -8,7 +8,7 @@
 // migration 0040 — catching exactly the class of bug this phase already
 // found once (published->accepted, draft->cancelled being missing).
 
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals } from "@std/assert";
 
 // Mirrors the edge list in supabase/migrations/0042_challenge_state_guard_v3.sql
 // exactly. Kept here as a duplicate, cross-checked, rather than imported

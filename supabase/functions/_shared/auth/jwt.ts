@@ -47,5 +47,5 @@ export async function verifyOptionalRequestJwt(
 ): Promise<AuthenticatedUser | null> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader) return null;
-  return verifyRequestJwt(request);
+  return await verifyRequestJwt(request);
 }

@@ -52,37 +52,37 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
   ChallengeCreated: {
     category: "challenge",
     preferenceKey: "challenge_updates",
-    resolveRecipients: async (p) => challengeParticipantIds(p.challengeId),
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
   },
   ChallengeAccepted: {
     category: "challenge",
     preferenceKey: "challenge_updates",
-    resolveRecipients: async (p) => challengeParticipantIds(p.challengeId),
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
   },
   EscrowLocked: {
     category: "escrow",
     preferenceKey: "wallet_updates",
-    resolveRecipients: async (p) => challengeParticipantIds(p.challengeId),
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
   },
   FundsReleased: {
     category: "escrow",
     preferenceKey: "wallet_updates",
-    resolveRecipients: async (p) => challengeParticipantIds(p.challengeId),
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
   },
   DisputeOpened: {
     category: "moderator",
     preferenceKey: "dispute_updates",
-    resolveRecipients: async (p) => challengeParticipantIds(p.challengeId),
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
   },
   TournamentStarted: {
     category: "tournament",
     preferenceKey: "tournament_updates",
-    resolveRecipients: async (p) => tournamentCreatorId(p.tournamentId),
+    resolveRecipients: (p) => tournamentCreatorId(p.tournamentId),
   },
   TournamentRoundCompleted: {
     category: "tournament",
     preferenceKey: "tournament_updates",
-    resolveRecipients: async (p) => tournamentCreatorId(p.tournamentId),
+    resolveRecipients: (p) => tournamentCreatorId(p.tournamentId),
   },
 };
 

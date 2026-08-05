@@ -45,9 +45,9 @@ function LoginFormFallback() {
   return (
     <AuthCard title="Log in" subtitle="Welcome back to ChampionsStake.">
       <div className="animate-pulse space-y-4">
-        <div className="bg-vv-divider h-10 rounded" />
-        <div className="bg-vv-divider h-10 rounded" />
-        <div className="bg-vv-divider h-10 rounded" />
+        <div className="h-10 rounded bg-vv-divider" />
+        <div className="h-10 rounded bg-vv-divider" />
+        <div className="h-10 rounded bg-vv-divider" />
       </div>
     </AuthCard>
   );
@@ -135,47 +135,47 @@ function LoginForm() {
           autoComplete="current-password"
           required
         />
-        <label className="font-exo text-vv-text-secondary mb-4 flex items-center gap-2 text-sm">
+        <label className="font-exo mb-4 flex items-center gap-2 text-sm text-vv-text-secondary">
           <input
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="border-vv-divider h-4 w-4 rounded"
+            className="h-4 w-4 rounded border-vv-divider"
           />
           Remember me
         </label>
         <SubmitButton loading={loading}>Log in</SubmitButton>
       </form>
 
-      <div className="text-vv-text-tertiary my-4 flex items-center gap-3 text-xs">
-        <div className="bg-vv-divider h-px flex-1" />
+      <div className="my-4 flex items-center gap-3 text-xs text-vv-text-tertiary">
+        <div className="h-px flex-1 bg-vv-divider" />
         or continue with
-        <div className="bg-vv-divider h-px flex-1" />
+        <div className="h-px flex-1 bg-vv-divider" />
       </div>
 
       <div className="flex gap-3">
         <button
           type="button"
           onClick={() => signInWithOAuth("google", redirectTo)}
-          className="font-exo border-vv-divider hover:border-vv-neon-green flex-1 rounded border py-2 text-sm text-white"
+          className="font-exo flex-1 rounded border border-vv-divider py-2 text-sm text-white hover:border-vv-neon-green"
         >
           Google
         </button>
         <button
           type="button"
           onClick={() => signInWithOAuth("discord", redirectTo)}
-          className="font-exo border-vv-divider hover:border-vv-neon-green flex-1 rounded border py-2 text-sm text-white"
+          className="font-exo flex-1 rounded border border-vv-divider py-2 text-sm text-white hover:border-vv-neon-green"
         >
           Discord
         </button>
       </div>
 
-      <p className="font-exo text-vv-text-secondary mt-4 text-center text-sm">
+      <p className="font-exo mt-4 text-center text-sm text-vv-text-secondary">
         <Link href="/forgot-password" className="text-vv-neon-green">
           Forgot password?
         </Link>
       </p>
-      <p className="font-exo text-vv-text-secondary mt-2 text-center text-sm">
+      <p className="font-exo mt-2 text-center text-sm text-vv-text-secondary">
         New here?{" "}
         <Link href="/register" className="text-vv-neon-green">
           Create an account

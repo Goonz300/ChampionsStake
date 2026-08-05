@@ -1,5 +1,5 @@
 // Run with: deno test supabase/functions/_shared/permissions/permissions.test.ts
-import { assertThrows } from "jsr:@std/assert@1";
+import { assertThrows } from "@std/assert";
 import {
   requireAdministrator,
   requireModerator,

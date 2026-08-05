@@ -3,7 +3,7 @@
 // Participants/Leaderboard — all straightforward reads that don't warrant
 // 5 separate Edge Functions each doing one SELECT.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

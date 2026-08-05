@@ -23,12 +23,7 @@ export async function POST(request: NextRequest) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      {
-        error: {
-          code: "VALIDATION_ERROR",
-          message: parsed.error.issues[0]?.message ?? "Invalid input.",
-        },
-      },
+      { error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid input." } },
       { status: 400 },
     );
   }
@@ -76,11 +71,7 @@ export async function POST(request: NextRequest) {
     data.session.refresh_token,
     ipAddress,
     userAgent,
-    new Date(
-      data.session.expires_at
-        ? data.session.expires_at * 1000
-        : Date.now() + 7 * 24 * 60 * 60 * 1000,
-    ),
+    new Date(data.session.expires_at ? data.session.expires_at * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000),
   );
 
   return NextResponse.json({

@@ -47,9 +47,6 @@ export async function verifyHmacSignature(
   }
 }
 
-export async function signPayload(
-  payload: string,
-  secret: string,
-): Promise<string> {
+export function signPayload(payload: string, secret: string): Promise<string> {
   return hmacSha256Hex(secret, payload);
 }

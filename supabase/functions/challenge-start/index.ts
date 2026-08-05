@@ -3,7 +3,7 @@
 // polling — but startMatch() itself only succeeds once the countdown has
 // actually elapsed server-side, so this never trusts a client's timer.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

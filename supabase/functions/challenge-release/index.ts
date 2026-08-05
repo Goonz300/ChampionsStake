@@ -1,6 +1,6 @@
 // supabase/functions/challenge-release/index.ts
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

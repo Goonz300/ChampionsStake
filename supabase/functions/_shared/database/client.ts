@@ -1,6 +1,6 @@
 // supabase/functions/_shared/database/client.ts
 
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "../config/index.ts";
 
 let cachedServiceRoleClient: SupabaseClient | null = null;

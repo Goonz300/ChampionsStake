@@ -66,7 +66,7 @@ export async function postBalancedEntries(
   const primaryWalletId = resolvePrimaryWalletId(request);
   const transactionAmount = netCredits; // == netDebits, already validated equal above
 
-  return withTransaction(async (sql) => {
+  return await withTransaction(async (sql) => {
     // Row-lock every distinct wallet touched, in a stable sorted order, to
     // prevent a lock-ordering deadlock between two concurrent transfers
     // touching the same two wallets in opposite order — this phase's

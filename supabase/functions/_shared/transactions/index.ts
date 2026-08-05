@@ -19,7 +19,7 @@
 // metadata write, which cannot be expressed inside a Postgres function at
 // all since Postgres cannot call the Storage API itself).
 
-import postgres from "npm:postgres@3";
+import postgres from "postgres";
 import { config } from "../config/index.ts";
 import { logger } from "../logger/index.ts";
 
@@ -43,11 +43,9 @@ function getSqlClient(): Sql {
  * Any thrown error automatically rolls back, per the `postgres` driver's
  * `sql.begin()` semantics.
  */
-export async function withTransaction<T>(
-  fn: (sql: Sql) => Promise<T>,
-): Promise<T> {
+export function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
   const sql = getSqlClient();
-  return sql.begin(async (txSql) => fn(txSql as unknown as Sql));
+  return sql.begin((txSql) => fn(txSql as unknown as Sql)) as Promise<T>;
 }
 
 export interface RetryOptions {

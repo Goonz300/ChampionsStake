@@ -4,7 +4,7 @@
 // immediately), bracket seeding is pure computation — genuinely fully
 // testable offline, no live Postgres required.
 
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals } from "@std/assert";
 import {
   computeNextRound,
   doubleEliminationGenerator,

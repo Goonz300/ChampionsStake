@@ -1,0 +1,15 @@
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "zod": "npm:zod@3.24.1",
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2",
+    "postgres": "npm:postgres@3",
+    "@std/assert": "jsr:@std/assert@1"
+  },
+  "fmt": {
+    "include": ["supabase/functions/"]
+  },
+  "lint": {
+    "include": ["supabase/functions/"]
+  }
+}

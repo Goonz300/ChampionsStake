@@ -2,7 +2,7 @@
 // Triggers prize distribution (event only — never moves money directly,
 // per this phase's explicit instruction) and marks the tournament completed.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

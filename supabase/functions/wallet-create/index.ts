@@ -5,7 +5,7 @@
 // trigger; this exists only for the edge case where that somehow didn't
 // happen (see service.ts's createWalletIfMissing header comment).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

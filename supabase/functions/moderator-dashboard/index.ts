@@ -3,7 +3,7 @@
 // behind one function via ?view=, the same consolidation pattern used by
 // tournament-browse/admin-system-health in prior phases.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

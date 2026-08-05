@@ -1,7 +1,7 @@
 // supabase/functions/payment-transfer/index.ts
 // POST with action='create_payout_method' or 'withdraw'.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

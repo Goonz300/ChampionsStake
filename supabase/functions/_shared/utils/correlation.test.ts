@@ -1,5 +1,5 @@
 // Run with: deno test supabase/functions/_shared/utils/correlation.test.ts
-import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { generateRequestId, getOrCreateCorrelationId } from "./correlation.ts";
 
 Deno.test("getOrCreateCorrelationId reuses an incoming X-Correlation-Id header", () => {

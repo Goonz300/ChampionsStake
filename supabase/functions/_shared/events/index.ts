@@ -38,7 +38,7 @@ export type DomainEventType =
   | "RateLimitProbe";
 
 export interface DomainEvent<T = Record<string, unknown>> {
-  type: DomainEventType | (string & {});
+  type: DomainEventType | (string & Record<never, never>);
   payload: T;
   correlationId?: string;
   emittedBy: string;

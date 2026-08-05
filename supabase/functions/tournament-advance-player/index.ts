@@ -1,7 +1,7 @@
 // supabase/functions/tournament-advance-player/index.ts
 // Admin-only: resolves a bye or overrides a match result (e.g. disqualification).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

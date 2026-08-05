@@ -2,7 +2,7 @@
 // PATCH: edit a draft. DELETE: delete a draft. Both share the resource, so
 // one function dispatches on method, same pattern as wallet-adjustment.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,
@@ -44,7 +44,7 @@ async function handleDelete(
   return noContentResponse();
 }
 
-async function handler(ctx: EdgeContext): Promise<Response> {
+function handler(ctx: EdgeContext): Promise<Response> {
   const url = new URL(ctx.request.url);
   const { challengeId } = pathSchema.parse({
     challengeId: url.searchParams.get("challengeId"),

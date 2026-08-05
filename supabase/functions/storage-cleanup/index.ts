@@ -22,7 +22,7 @@
 // Scheduled via pg_cron + pg_net calling this function's URL — see
 // supabase/migrations/0033_storage_cleanup_schedule.sql.
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 const PENDING_GRACE_HOURS = 24;
 

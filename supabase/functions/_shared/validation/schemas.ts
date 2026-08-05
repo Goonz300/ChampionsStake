@@ -1,6 +1,6 @@
 // supabase/functions/_shared/validation/schemas.ts
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import { config } from "../config/index.ts";
 
 export const uuidSchema = z.string().uuid();

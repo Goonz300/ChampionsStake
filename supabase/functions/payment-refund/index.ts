@@ -1,7 +1,7 @@
 // supabase/functions/payment-refund/index.ts
 // Admin-only — see refund-service.ts's header note on scope.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

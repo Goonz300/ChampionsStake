@@ -21,18 +21,18 @@ export function FormField({
 } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="mb-4">
-      <label htmlFor={id} className="font-exo text-vv-text-secondary mb-1 block text-sm">
+      <label htmlFor={id} className="font-exo mb-1 block text-sm text-vv-text-secondary">
         {label}
       </label>
       <input
         id={id}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="border-vv-divider bg-vv-black focus:border-vv-neon-green focus:ring-vv-neon-green w-full rounded border px-3 py-2 text-white focus:outline-none focus:ring-1"
+        className="w-full rounded border border-vv-divider bg-vv-black px-3 py-2 text-white focus:border-vv-neon-green focus:outline-none focus:ring-1 focus:ring-vv-neon-green"
         {...inputProps}
       />
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-vv-loss-red mt-1 text-sm">
+        <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-vv-loss-red">
           {error}
         </p>
       )}
@@ -52,7 +52,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={loading || buttonProps.disabled}
-      className="font-exo bg-vv-neon-green text-vv-black w-full rounded px-4 py-2 font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      className="font-exo w-full rounded bg-vv-neon-green px-4 py-2 font-semibold text-vv-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       {...buttonProps}
     >
       {loading ? "Please wait…" : children}

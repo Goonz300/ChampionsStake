@@ -1,7 +1,7 @@
 // supabase/functions/tournament-register/index.ts
 // POST: register (idempotency-keyed, since it moves money). DELETE: withdraw.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,
@@ -66,7 +66,7 @@ async function handleDelete(ctx: EdgeContext): Promise<Response> {
   return successResponse({ withdrawn: true });
 }
 
-async function handler(ctx: EdgeContext): Promise<Response> {
+function handler(ctx: EdgeContext): Promise<Response> {
   if (ctx.request.method === "POST") return handlePost(ctx);
   if (ctx.request.method === "DELETE") return handleDelete(ctx);
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);

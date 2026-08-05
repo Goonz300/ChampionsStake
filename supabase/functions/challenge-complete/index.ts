@@ -4,7 +4,7 @@
 // it after a moderator_review decision without going through releaseFunds
 // (which assumes a mutual-release path).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

@@ -6,7 +6,7 @@
 // WalletRepository, ChallengeRepository, etc. each extend this), not to be
 // a full ORM. No domain-specific repository is created in this phase.
 
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NotFoundError } from "../errors/index.ts";
 
 export abstract class Repository<TRow extends { id: string }> {

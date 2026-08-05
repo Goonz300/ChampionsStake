@@ -1,5 +1,5 @@
 // Run with: deno test supabase/functions/_shared/security/signed-requests.test.ts
-import { assertEquals, assertRejects } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "@std/assert";
 import { signPayload, verifyHmacSignature } from "./signed-requests.ts";
 import { AuthenticationError } from "../errors/index.ts";
 

@@ -111,12 +111,17 @@ export const paystackProvider: PaymentProvider = {
     };
   },
 
-  async verifyWebhookSignature(
+  verifyWebhookSignature(
     rawBody: string,
     signatureHeader: string | null,
   ): Promise<WebhookVerificationResult> {
     if (!signatureHeader) {
-      return { valid: false, eventId: "", eventType: "", payload: {} };
+      return Promise.resolve({
+        valid: false,
+        eventId: "",
+        eventType: "",
+        payload: {},
+      });
     }
 
     const expectedSignature = createHmac("sha512", getSecretKey()).update(
@@ -125,14 +130,24 @@ export const paystackProvider: PaymentProvider = {
 
     const valid = expectedSignature === signatureHeader;
     if (!valid) {
-      return { valid: false, eventId: "", eventType: "", payload: {} };
+      return Promise.resolve({
+        valid: false,
+        eventId: "",
+        eventType: "",
+        payload: {},
+      });
     }
 
     const payload = JSON.parse(rawBody);
     const eventId: string = payload?.data?.reference ??
       payload?.data?.id?.toString() ?? crypto.randomUUID();
 
-    return { valid: true, eventId, eventType: payload.event, payload };
+    return Promise.resolve({
+      valid: true,
+      eventId,
+      eventType: payload.event,
+      payload,
+    });
   },
 
   async createTransferRecipient(
@@ -229,9 +244,7 @@ export const paystackProvider: PaymentProvider = {
     };
   },
 
-  async lookupTransaction(
-    providerRef: string,
-  ): Promise<VerifyTransactionResult> {
+  lookupTransaction(providerRef: string): Promise<VerifyTransactionResult> {
     return paystackProvider.verifyTransaction(providerRef);
   },
 };

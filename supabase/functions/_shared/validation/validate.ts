@@ -1,6 +1,6 @@
 // supabase/functions/_shared/validation/validate.ts
 
-import type { z } from "npm:zod@3.24.1";
+import type { z } from "zod";
 import { ValidationError } from "../errors/index.ts";
 
 function formatZodError(error: z.ZodError): string {

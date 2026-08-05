@@ -4,7 +4,7 @@
 // wallet, or (with requireSupportStaff) another user's via ?userId=.
 // Also serves as the "Get Statement" API when ?format=statement is passed.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

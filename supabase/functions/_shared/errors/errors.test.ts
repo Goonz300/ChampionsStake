@@ -1,5 +1,5 @@
 // Run with: deno test supabase/functions/_shared/errors/errors.test.ts
-import { assertEquals, assertInstanceOf } from "jsr:@std/assert@1";
+import { assertEquals, assertInstanceOf } from "@std/assert";
 import {
   AuthenticationError,
   AuthorizationError,

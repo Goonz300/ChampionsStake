@@ -15,10 +15,7 @@ export async function GET() {
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase
-      .from("games")
-      .select("id", { count: "exact", head: true })
-      .limit(1);
+    const { error } = await supabase.from("games").select("id", { count: "exact", head: true }).limit(1);
     databaseHealthy = !error;
   } catch {
     databaseHealthy = false;

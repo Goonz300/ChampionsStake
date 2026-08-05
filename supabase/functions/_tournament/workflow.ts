@@ -23,7 +23,7 @@
 // (that trigger only fires on UPDATE), so this is a legitimate, guard-
 // compatible way to seed a challenge directly into the gameplay-ready state.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import {
   AuthorizationError,

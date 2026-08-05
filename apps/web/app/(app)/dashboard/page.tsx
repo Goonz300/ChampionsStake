@@ -26,27 +26,27 @@ export default async function DashboardPage() {
     .single();
 
   return (
-    <main className="bg-vv-black min-h-screen p-8 text-white">
-      <h1 className="font-orbitron text-vv-neon-green text-2xl font-bold">
+    <main className="min-h-screen bg-vv-black p-8 text-white">
+      <h1 className="font-orbitron text-2xl font-bold text-vv-neon-green">
         Welcome, {profile?.display_name ?? user.email}
       </h1>
-      <dl className="font-exo text-vv-text-secondary mt-6 space-y-2 text-sm">
+      <dl className="font-exo mt-6 space-y-2 text-sm text-vv-text-secondary">
         <div className="flex gap-2">
-          <dt className="text-vv-text-tertiary w-40">Account status</dt>
+          <dt className="w-40 text-vv-text-tertiary">Account status</dt>
           <dd>{profile?.status}</dd>
         </div>
         <div className="flex gap-2">
-          <dt className="text-vv-text-tertiary w-40">KYC status</dt>
+          <dt className="w-40 text-vv-text-tertiary">KYC status</dt>
           <dd>{profile?.kyc_status}</dd>
         </div>
         <div className="flex gap-2">
-          <dt className="text-vv-text-tertiary w-40">Trust score</dt>
+          <dt className="w-40 text-vv-text-tertiary">Trust score</dt>
           <dd>{profile?.trust_score}</dd>
         </div>
       </dl>
-      <p className="font-exo text-vv-text-tertiary mt-8 text-sm">
-        Challenge browsing, the Vault, and Social are built in later phases (Roadmap Phase 2
-        onward).
+      <p className="font-exo mt-8 text-sm text-vv-text-tertiary">
+        Challenge browsing, the Vault, and Social are built in later phases
+        (Roadmap Phase 2 onward).
       </p>
     </main>
   );

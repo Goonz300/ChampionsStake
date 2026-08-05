@@ -11,7 +11,7 @@
 // correctly: auth, permissions, validation, idempotency, a transaction,
 // audit, an emitted event, and a standard response, all in one place.
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

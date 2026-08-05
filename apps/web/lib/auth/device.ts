@@ -8,11 +8,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
  * multi-account/fraud-detection signal in Business Rules §14 without
  * introducing a third-party fingerprinting script.
  */
-export function deriveDeviceFingerprint(
-  userAgent: string,
-  acceptLanguage: string,
-  ipAddress: string,
-): string {
+export function deriveDeviceFingerprint(userAgent: string, acceptLanguage: string, ipAddress: string): string {
   const ipPrefix = ipAddress.split(".").slice(0, 3).join("."); // /24-ish granularity, not exact IP
   return createHash("sha256").update(`${userAgent}|${acceptLanguage}|${ipPrefix}`).digest("hex");
 }

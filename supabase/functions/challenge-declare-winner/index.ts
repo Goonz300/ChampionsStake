@@ -5,7 +5,7 @@
 // DIFFERENT idempotency keys from the two different participants racing
 // each other, which an Idempotency-Key header alone cannot do).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,

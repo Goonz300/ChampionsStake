@@ -16,7 +16,9 @@ describe("env loader", () => {
 
   it("loads clientEnv successfully when all required vars are present", async () => {
     const { clientEnv } = await import("./env");
-    expect(clientEnv.NEXT_PUBLIC_SUPABASE_URL).toBe("test-NEXT_PUBLIC_SUPABASE_URL");
+    expect(clientEnv.NEXT_PUBLIC_SUPABASE_URL).toBe(
+      "test-NEXT_PUBLIC_SUPABASE_URL",
+    );
   });
 
   it("throws a clear error when a required client var is missing", async () => {

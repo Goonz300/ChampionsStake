@@ -20,10 +20,7 @@ export const registerSchema = z.object({
     .string()
     .min(3, "Display name must be at least 3 characters.")
     .max(20, "Display name must be at most 20 characters.")
-    .regex(
-      /^[a-zA-Z0-9_\- ]+$/,
-      "Display name can only contain letters, numbers, spaces, - and _.",
-    ),
+    .regex(/^[a-zA-Z0-9_\- ]+$/, "Display name can only contain letters, numbers, spaces, - and _."),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 

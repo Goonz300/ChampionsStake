@@ -36,12 +36,7 @@ export async function POST(request: NextRequest) {
 
   if (error?.status === 429) {
     return NextResponse.json(
-      {
-        error: {
-          code: "RATE_LIMIT_EXCEEDED",
-          message: "Please wait before requesting another email.",
-        },
-      },
+      { error: { code: "RATE_LIMIT_EXCEEDED", message: "Please wait before requesting another email." } },
       { status: 429 },
     );
   }

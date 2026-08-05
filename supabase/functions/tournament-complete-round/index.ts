@@ -3,7 +3,7 @@
 // default in this phase — see TOURNAMENT-001-deliverable.md's note on
 // sub-minute timer infrastructure, the same gap CHALLENGE-001 documented).
 
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 import {
   type EdgeContext,
   withEdgeFunction,
