@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { BUCKET_CONFIG, type StorageBucket } from "@/lib/storage/config";
-import { validateUpload, sanitizeFilename, computeChecksum, FileValidationError } from "@/lib/storage/validation";
+import {
+  validateUpload,
+  sanitizeFilename,
+  computeChecksum,
+  FileValidationError,
+} from "@/lib/storage/validation";
 import { noopImageProcessor } from "@/lib/storage/image-processing";
 
 /**
@@ -39,7 +44,10 @@ export class StorageAuthorizationError extends Error {
   }
 }
 
-async function checkUploadAuthorization(bucket: StorageBucket, related: RelatedEntity): Promise<void> {
+async function checkUploadAuthorization(
+  bucket: StorageBucket,
+  related: RelatedEntity,
+): Promise<void> {
   const config = BUCKET_CONFIG[bucket];
   const supabase = await createClient(); // RLS-respecting, tied to the caller's session
 
@@ -63,7 +71,9 @@ async function checkUploadAuthorization(bucket: StorageBucket, related: RelatedE
     case "dispute": {
       const { data, error } = await supabase.rpc("can_submit_proof", { p_dispute_id: related.id });
       if (error || !data) {
-        throw new StorageAuthorizationError("You may not submit evidence for this dispute right now.");
+        throw new StorageAuthorizationError(
+          "You may not submit evidence for this dispute right now.",
+        );
       }
       return;
     }
@@ -84,7 +94,11 @@ async function checkUploadAuthorization(bucket: StorageBucket, related: RelatedE
   }
 }
 
-function buildStoragePath(bucket: StorageBucket, folderSegment: string, sanitizedFilename: string): string {
+function buildStoragePath(
+  bucket: StorageBucket,
+  folderSegment: string,
+  sanitizedFilename: string,
+): string {
   // The folder segment (user/challenge/dispute/tournament id, or a fixed
   // admin-chosen category for system-assets) is always server-validated
   // above BEFORE this is called. The filename component is always a fresh
@@ -141,7 +155,7 @@ export async function uploadFile(input: UploadFileInput): Promise<UploadFileResu
   const { data: row, error: insertError } = await admin
     .from("file_uploads")
     .insert({
-      owner_id: (await getRequestingUserId()),
+      owner_id: await getRequestingUserId(),
       bucket: input.bucket,
       storage_path: storagePath,
       mime_type: input.mimeType,
@@ -300,7 +314,8 @@ async function getFileMetadataByPath(bucket: StorageBucket, storagePath: string)
     .eq("storage_path", storagePath)
     .single();
 
-  if (error || !data) throw new Error(`Failed to fetch file metadata for ${storagePath}: ${error?.message}`);
+  if (error || !data)
+    throw new Error(`Failed to fetch file metadata for ${storagePath}: ${error?.message}`);
   return data;
 }
 

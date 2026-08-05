@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
           kind="success"
           message="If an account exists for that email, a reset link is on its way."
         />
-        <Link href="/login" className="font-exo block text-center text-sm text-vv-neon-green">
+        <Link href="/login" className="font-exo text-vv-neon-green block text-center text-sm">
           Back to login
         </Link>
       </AuthCard>
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
         />
         <SubmitButton loading={loading}>Send reset link</SubmitButton>
       </form>
-      <Link href="/login" className="font-exo mt-4 block text-center text-sm text-vv-neon-green">
+      <Link href="/login" className="font-exo text-vv-neon-green mt-4 block text-center text-sm">
         Back to login
       </Link>
     </AuthCard>

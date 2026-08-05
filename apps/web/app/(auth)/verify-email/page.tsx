@@ -43,7 +43,10 @@ export default function VerifyEmailPage() {
     return (
       <AuthCard title="Email verified" subtitle="You're all set.">
         <FormBanner kind="success" message="Your email has been verified." />
-        <Link href="/dashboard" className="font-exo mt-4 block text-center text-sm text-vv-neon-green">
+        <Link
+          href="/dashboard"
+          className="font-exo text-vv-neon-green mt-4 block text-center text-sm"
+        >
           Go to dashboard
         </Link>
       </AuthCard>
@@ -51,7 +54,10 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <AuthCard title="Verify your email" subtitle="Click the link we sent you to activate your account.">
+    <AuthCard
+      title="Verify your email"
+      subtitle="Click the link we sent you to activate your account."
+    >
       {error && <FormBanner kind="error" message={error} />}
       {sent && <FormBanner kind="success" message="Verification email resent." />}
       <form onSubmit={handleResend} noValidate>

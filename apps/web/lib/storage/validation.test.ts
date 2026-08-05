@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeFilename, computeChecksum, validateUpload, FileValidationError } from "./validation";
+import {
+  sanitizeFilename,
+  computeChecksum,
+  validateUpload,
+  FileValidationError,
+} from "./validation";
 
 describe("sanitizeFilename", () => {
   it("strips path separators (path traversal prevention)", () => {
@@ -47,13 +52,23 @@ describe("validateUpload", () => {
 
   it("accepts a valid PNG for the avatars bucket", () => {
     expect(() =>
-      validateUpload({ bucket: "avatars", mimeType: "image/png", sizeBytes: pngBytes.length, buffer: pngBytes }),
+      validateUpload({
+        bucket: "avatars",
+        mimeType: "image/png",
+        sizeBytes: pngBytes.length,
+        buffer: pngBytes,
+      }),
     ).not.toThrow();
   });
 
   it("rejects a disallowed MIME type for the bucket", () => {
     expect(() =>
-      validateUpload({ bucket: "avatars", mimeType: "video/mp4", sizeBytes: 1000, buffer: new Uint8Array(10) }),
+      validateUpload({
+        bucket: "avatars",
+        mimeType: "video/mp4",
+        sizeBytes: 1000,
+        buffer: new Uint8Array(10),
+      }),
     ).toThrow(FileValidationError);
   });
 
@@ -70,14 +85,24 @@ describe("validateUpload", () => {
 
   it("rejects an empty file", () => {
     expect(() =>
-      validateUpload({ bucket: "avatars", mimeType: "image/png", sizeBytes: 0, buffer: new Uint8Array(0) }),
+      validateUpload({
+        bucket: "avatars",
+        mimeType: "image/png",
+        sizeBytes: 0,
+        buffer: new Uint8Array(0),
+      }),
     ).toThrow(/empty/);
   });
 
   it("rejects content whose magic bytes don't match the declared MIME type", () => {
     // Declaring PNG but supplying JPEG bytes — the "renamed file" attack.
     expect(() =>
-      validateUpload({ bucket: "avatars", mimeType: "image/png", sizeBytes: jpegBytes.length, buffer: jpegBytes }),
+      validateUpload({
+        bucket: "avatars",
+        mimeType: "image/png",
+        sizeBytes: jpegBytes.length,
+        buffer: jpegBytes,
+      }),
     ).toThrow(/signature check/);
   });
 

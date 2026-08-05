@@ -63,5 +63,7 @@ export async function POST(request: NextRequest) {
     parsed.data.expiresInSeconds ?? 3600,
   );
 
-  return NextResponse.json({ data: { signed_url: signedUrl, expires_in_seconds: parsed.data.expiresInSeconds ?? 3600 } });
+  return NextResponse.json({
+    data: { signed_url: signedUrl, expires_in_seconds: parsed.data.expiresInSeconds ?? 3600 },
+  });
 }
