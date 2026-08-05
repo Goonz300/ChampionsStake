@@ -1,7 +1,12 @@
 -- Rollback 0068: Identity Lookup Seed Data
--- Reference/lookup data only (no user-generated rows expected -- RLS
--- restricts writes to admins), so a full delete is safe rather than
--- reversing the exact seeded rows individually.
-delete from timezones;
-delete from languages;
-delete from countries;
+--
+-- Deliberately a no-op. Rollbacks run in reverse numeric order (README),
+-- so 0068's rollback executes BEFORE 0067's -- at that point
+-- fk_profiles_country_code and the plain FKs on profiles.language_code/
+-- timezone_name are still live, and any profiles row referencing a seeded
+-- country/language/timezone would make `delete from countries/languages/
+-- timezones` fail with a foreign key violation. 0067's rollback (which
+-- runs next) already does `drop table if exists timezones/languages/
+-- countries`, which removes this seed data as a side effect without
+-- tripping that FK -- DROP TABLE doesn't require the referencing side to
+-- be cleared first. No separate action needed here.

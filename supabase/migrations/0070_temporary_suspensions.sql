@@ -58,30 +58,33 @@ security definer
 set search_path = public
 as $$
 declare
-  v_user_id uuid;
+  v_expired record;
 begin
-  for v_user_id in
+  for v_expired in
     update user_suspensions
     set status = 'expired', lifted_at = now()
     where status = 'active'
       and expires_at is not null
       and expires_at <= now()
-    returning user_id
+    returning id, user_id
   loop
+    -- target_table/target_id must identify the row that actually changed
+    -- (this user_suspensions row), not the user it belongs to -- user_id
+    -- goes in metadata instead, not in target_id.
     perform log_security_event(
       'SuspensionExpired',
       'user_suspensions',
-      v_user_id::text,
-      '{}'::jsonb
+      v_expired.id::text,
+      jsonb_build_object('user_id', v_expired.user_id)
     );
 
     if not exists (
       select 1 from user_suspensions
-      where user_id = v_user_id and status = 'active'
+      where user_id = v_expired.user_id and status = 'active'
     ) then
       update profiles
       set status = 'active'
-      where id = v_user_id and status = 'suspended';
+      where id = v_expired.user_id and status = 'suspended';
       -- profiles' own trg_audit_profile_status_change (0025) fires here
       -- automatically and logs the AccountStatusChanged event; no
       -- duplicate audit call needed for the account-level transition.
