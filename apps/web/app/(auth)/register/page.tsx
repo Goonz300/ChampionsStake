@@ -59,7 +59,7 @@ export default function RegisterPage() {
           kind="success"
           message="We've sent a verification link to your email. Click it to activate your account."
         />
-        <Link href="/login" className="font-exo block text-center text-sm text-vv-neon-green">
+        <Link href="/login" className="font-exo text-vv-neon-green block text-center text-sm">
           Back to login
         </Link>
       </AuthCard>
@@ -102,7 +102,7 @@ export default function RegisterPage() {
         />
         <SubmitButton loading={loading}>Create account</SubmitButton>
       </form>
-      <p className="font-exo mt-4 text-center text-sm text-vv-text-secondary">
+      <p className="font-exo text-vv-text-secondary mt-4 text-center text-sm">
         Already have an account?{" "}
         <Link href="/login" className="text-vv-neon-green">
           Log in

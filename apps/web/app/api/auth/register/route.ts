@@ -44,9 +44,7 @@ export async function POST(request: NextRequest) {
       {
         error: {
           code: isDuplicate ? "AUTH_EMAIL_ALREADY_EXISTS" : "VALIDATION_ERROR",
-          message: isDuplicate
-            ? "An account with this email already exists."
-            : error.message,
+          message: isDuplicate ? "An account with this email already exists." : error.message,
         },
       },
       { status: isDuplicate ? 409 : 400 },

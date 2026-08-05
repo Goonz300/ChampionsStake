@@ -32,7 +32,10 @@
  * actually expects, whatever that turns out to be, instead of betting on
  * a guess about `Route`/`RouteImpl`'s exact definitions.
  */
-export function getSafeRedirectPath(candidate: string | null | undefined, fallback: string): string {
+export function getSafeRedirectPath(
+  candidate: string | null | undefined,
+  fallback: string,
+): string {
   if (!candidate) return fallback;
 
   // Must start with exactly one "/" (a relative path)...

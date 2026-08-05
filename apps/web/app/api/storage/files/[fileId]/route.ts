@@ -9,7 +9,10 @@ import { createClient } from "@/lib/supabase/server";
  * this route just surfaces a 404 rather than a raw empty-row response when
  * RLS filters the row out.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ fileId: string }> },
+) {
   const { fileId } = await params;
 
   try {
@@ -29,7 +32,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
  * (not solely by storage RLS, since deletion also needs to update
  * file_uploads.status, which goes through the service-role client).
  */
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ fileId: string }> },
+) {
   const { fileId } = await params;
   const supabase = await createClient();
 
@@ -48,7 +54,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   try {
     metadata = await getFileMetadata(fileId);
   } catch {
-    return NextResponse.json({ error: { code: "NOT_FOUND", message: "File not found." } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: "NOT_FOUND", message: "File not found." } },
+      { status: 404 },
+    );
   }
 
   const { data: isStaff } = await supabase.rpc("is_admin", {});

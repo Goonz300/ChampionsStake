@@ -45,7 +45,12 @@ export async function POST(request: NextRequest) {
   const bucketParsed = bucketSchema.safeParse(bucketRaw);
   const relatedTableParsed = relatedTableSchema.safeParse(relatedTableRaw);
 
-  if (!bucketParsed.success || !relatedTableParsed.success || typeof relatedId !== "string" || !(file instanceof File)) {
+  if (
+    !bucketParsed.success ||
+    !relatedTableParsed.success ||
+    typeof relatedId !== "string" ||
+    !(file instanceof File)
+  ) {
     return NextResponse.json(
       {
         error: {
@@ -62,7 +67,9 @@ export async function POST(request: NextRequest) {
 
   if (file.size > config.maxSizeBytes) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: `File exceeds the size limit for ${bucket}.` } },
+      {
+        error: { code: "VALIDATION_ERROR", message: `File exceeds the size limit for ${bucket}.` },
+      },
       { status: 400 },
     );
   }
@@ -81,10 +88,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (err) {
     if (err instanceof StorageAuthorizationError) {
-      return NextResponse.json({ error: { code: "FORBIDDEN", message: err.message } }, { status: 403 });
+      return NextResponse.json(
+        { error: { code: "FORBIDDEN", message: err.message } },
+        { status: 403 },
+      );
     }
     if (err instanceof FileValidationError) {
-      return NextResponse.json({ error: { code: err.code, message: err.message } }, { status: 400 });
+      return NextResponse.json(
+        { error: { code: err.code, message: err.message } },
+        { status: 400 },
+      );
     }
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Upload failed." } },
