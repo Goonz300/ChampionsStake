@@ -1,5 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { isPublicPath, isAdminPath, isModerationPath, isMfaCompletionPath } from "./middleware";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+
+vi.mock("@/lib/supabase/middleware", () => ({
+  updateSession: vi.fn(),
+}));
+vi.mock("@supabase/ssr", () => ({
+  createServerClient: vi.fn(),
+}));
+
+import { updateSession } from "@/lib/supabase/middleware";
+import { createServerClient } from "@supabase/ssr";
+import {
+  isPublicPath,
+  isAdminPath,
+  isModerationPath,
+  isMfaCompletionPath,
+  middleware,
+} from "./middleware";
 
 describe("isPublicPath", () => {
   it("treats the root and auth pages as public", () => {
@@ -75,5 +92,84 @@ describe("isMfaCompletionPath", () => {
   it("does not match unrelated paths", () => {
     expect(isMfaCompletionPath("/dashboard")).toBe(false);
     expect(isMfaCompletionPath("/api/auth/login")).toBe(false);
+  });
+});
+
+describe("middleware admin/moderator gating (Phase 3D: single source of truth via RPC)", () => {
+  const authedUser = { id: "user-1", email: "admin@example.com" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockSupabaseClient(rpcSpy: ReturnType<typeof vi.fn>) {
+    const maybeSingleMock = vi.fn().mockResolvedValue({ data: { enabled: false } });
+    const eqMock = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+    const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
+    const fromMock = vi.fn().mockReturnValue({ select: selectMock });
+    return { from: fromMock, rpc: rpcSpy };
+  }
+
+  function makeRequest(pathname: string): NextRequest {
+    return new NextRequest(`https://example.com${pathname}`);
+  }
+
+  async function setup(rpcResult: boolean | null) {
+    const { NextResponse } = await import("next/server");
+    const rpcSpy = vi.fn().mockResolvedValue({ data: rpcResult, error: null });
+    vi.mocked(updateSession).mockResolvedValue({
+      response: NextResponse.next(),
+      user: authedUser,
+      mfaSatisfied: true,
+    } as never);
+    vi.mocked(createServerClient).mockReturnValue(mockSupabaseClient(rpcSpy) as never);
+    return rpcSpy;
+  }
+
+  it("calls is_admin (not is_moderator) for a non-moderation admin path", async () => {
+    const rpcSpy = await setup(true);
+
+    const response = await middleware(makeRequest("/admin/users"));
+
+    expect(rpcSpy).toHaveBeenCalledWith("is_admin", {});
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("calls is_moderator (not is_admin) for the moderation subpath", async () => {
+    const rpcSpy = await setup(true);
+
+    const response = await middleware(makeRequest("/admin/moderation/disputes"));
+
+    expect(rpcSpy).toHaveBeenCalledWith("is_moderator", {});
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("redirects to /access-denied when the RPC returns false", async () => {
+    await setup(false);
+
+    const response = await middleware(makeRequest("/admin/users"));
+
+    expect(response.headers.get("location")).toContain("/access-denied");
+  });
+
+  it("redirects to /access-denied when the RPC returns null (e.g. a query error), never fails open", async () => {
+    // Regression test: this middleware no longer separately checks
+    // profiles.status, since is_admin()/is_moderator() already fold that
+    // check in — but that also means a null/undefined RPC result (a
+    // suspended account, a missing profile row, or a transient error) must
+    // still deny access, not silently pass through.
+    await setup(null);
+
+    const response = await middleware(makeRequest("/admin/users"));
+
+    expect(response.headers.get("location")).toContain("/access-denied");
+  });
+
+  it("never calls the role RPC at all for a non-admin path", async () => {
+    const rpcSpy = await setup(true);
+
+    await middleware(makeRequest("/dashboard"));
+
+    expect(rpcSpy).not.toHaveBeenCalled();
   });
 });

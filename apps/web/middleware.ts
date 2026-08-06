@@ -112,6 +112,14 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- Admin / moderator role gating -----------------------------------------
+  // Phase 3D independent-review finding: this used to re-derive the
+  // moderator/administrator rule inline (role in (...) && status ===
+  // 'active'), a second, hand-written copy of exactly what is_admin()/
+  // is_moderator() already express in migration 0016 and enforce in every
+  // RLS policy. Calling the canonical RPCs here instead means there is
+  // exactly one source of truth for "is this user a moderator/admin" --
+  // both functions already check `status = 'active'` themselves, so no
+  // separate status check is needed on this side.
   if (isAdminPath(pathname)) {
     const roleClient = createServerClient<Database>(
       clientEnv.NEXT_PUBLIC_SUPABASE_URL,
@@ -119,25 +127,10 @@ export async function middleware(request: NextRequest) {
       { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } },
     );
 
-    const { data: profile } = await roleClient
-      .from("profiles")
-      .select("role, status")
-      .eq("id", user.id)
-      .maybeSingle();
+    const rpcName = isModerationPath(pathname) ? "is_moderator" : "is_admin";
+    const { data: allowed } = await roleClient.rpc(rpcName, {});
 
-    const role = profile?.role;
-    const status = profile?.status;
-
-    if (status !== "active") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/access-denied";
-      return NextResponse.redirect(url);
-    }
-
-    const allowedForModeration = role === "moderator" || role === "administrator";
-    const allowedForAdmin = role === "administrator";
-
-    if (isModerationPath(pathname) ? !allowedForModeration : !allowedForAdmin) {
+    if (!allowed) {
       const url = request.nextUrl.clone();
       url.pathname = "/access-denied";
       return NextResponse.redirect(url);

@@ -245,6 +245,10 @@ export interface Database {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      is_moderator: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
     };
   };
 }
