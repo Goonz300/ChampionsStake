@@ -3,6 +3,7 @@
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { NotFoundError } from "../_shared/errors/index.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
+import { emit } from "../_shared/events/index.ts";
 
 export interface CreateAnnouncementInput {
   category: "platform_notice" | "maintenance" | "tournament" | "emergency";
@@ -65,6 +66,24 @@ export async function publishAnnouncement(
     category: "admin",
     targetTable: "announcements",
     targetId: announcementId,
+  });
+
+  // Phase 4 fix: admin actions previously published no domain event at
+  // all (grep confirmed zero emit() calls anywhere in _admin/), unlike
+  // every other actor's privileged writes. The primary realtime delivery
+  // path for a published announcement is Postgres Changes on the
+  // `announcements` table itself (migration 0077 adds it to the
+  // supabase_realtime publication, RLS-filtered to published+non-expired
+  // rows, already correct for anon+authenticated readers) -- this event
+  // exists for consistency/future extensibility (e.g. audit tooling,
+  // correlation), not as the delivery mechanism. Deliberately does NOT
+  // add an EVENT_RULES entry: fanning this out to an in-app notification
+  // for every platform user is a materially different, much larger
+  // feature (mass-notification batching) than this phase's scope.
+  await emit({
+    type: "AnnouncementPublished",
+    payload: { announcementId },
+    emittedBy: "admin-announcements",
   });
 }
 
