@@ -1,7 +1,17 @@
 // supabase/functions/_moderator/notes.ts
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
+import { recordAudit } from "../_shared/audit/index.ts";
 
+/**
+ * Phase 3D independent-review finding: unlike decisions.ts/queue.ts/
+ * appeals.ts (this module's siblings in _moderator/), adding a note had no
+ * audit trail. Notes themselves stay private (never visible to players,
+ * per MODERATOR-001's own design) -- this only records that a note was
+ * added and by whom, not its content, consistent with how other audit
+ * entries in this codebase avoid duplicating sensitive content into
+ * metadata unless the action itself is the sensitive part.
+ */
 export async function addNote(
   disputeId: string,
   authorId: string,
@@ -15,6 +25,17 @@ export async function addNote(
     .single();
 
   if (error || !data) throw new Error(`Failed to add note: ${error?.message}`);
+
+  await recordAudit({
+    actorId: authorId,
+    actorType: "moderator",
+    action: "ModeratorNoteAdded",
+    category: "moderation",
+    targetTable: "dispute_notes",
+    targetId: data.id,
+    metadata: { dispute_id: disputeId },
+  });
+
   return { id: data.id };
 }
 

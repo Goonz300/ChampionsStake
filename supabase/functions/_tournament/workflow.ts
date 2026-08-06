@@ -702,7 +702,19 @@ export async function triggerPrizeDistribution(
   });
 }
 
-export async function archiveTournament(tournamentId: string): Promise<void> {
+/**
+ * Phase 3D independent-review finding: this had no audit trail, unlike its
+ * sibling cancelTournament (which already calls recordAudit a few lines
+ * below in this same file). actorId is null for the scheduled-job caller
+ * (tournament-archive/index.ts's automatic sweep) and the calling
+ * administrator's id for the admin-tournaments/index.ts manual path --
+ * mirrors the actorId-optional pattern _wallet/service.ts's freezeWallet
+ * already uses for the same system-vs-admin distinction.
+ */
+export async function archiveTournament(
+  tournamentId: string,
+  actorId: string | null,
+): Promise<void> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (!["completed", "cancelled"].includes(tournament.status)) {
     throw new ConflictError(
@@ -710,6 +722,14 @@ export async function archiveTournament(tournamentId: string): Promise<void> {
     );
   }
   await updateTournamentStatus(tournamentId, "archived");
+  await recordAudit({
+    actorId,
+    actorType: actorId ? "administrator" : "system",
+    action: "TournamentArchived",
+    category: "tournament",
+    targetTable: "tournaments",
+    targetId: tournamentId,
+  });
 }
 
 export async function cancelTournament(

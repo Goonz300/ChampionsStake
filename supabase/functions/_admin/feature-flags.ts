@@ -9,6 +9,7 @@
 // approval logic, which would risk the two copies drifting apart.
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
+import { recordAudit } from "../_shared/audit/index.ts";
 
 export async function listFeatureFlags() {
   const supabase = getServiceRoleClient();
@@ -18,7 +19,20 @@ export async function listFeatureFlags() {
   return data ?? [];
 }
 
-export async function toggleFeatureFlag(key: string, enabled: boolean) {
+/**
+ * Phase 3D independent-review finding: this write had no audit trail at
+ * all, despite being a privileged action that can gate money-affecting
+ * behavior. The four-eyes dual-approval workflow itself is untouched
+ * (still entirely enforced by fn_feature_flags_dual_approval_guard on the
+ * UPDATE below, per this file's original header comment) -- actorId is
+ * added only to record WHO issued each toggle, not to change what the
+ * toggle does.
+ */
+export async function toggleFeatureFlag(
+  key: string,
+  enabled: boolean,
+  actorId: string,
+) {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("feature_flags")
@@ -30,5 +44,16 @@ export async function toggleFeatureFlag(key: string, enabled: boolean) {
   if (error) {
     throw new Error(`Failed to update feature flag ${key}: ${error.message}`);
   }
+
+  await recordAudit({
+    actorId,
+    actorType: "administrator",
+    action: "FeatureFlagToggled",
+    category: "admin",
+    targetTable: "feature_flags",
+    targetId: key,
+    metadata: { requested_enabled: enabled },
+  });
+
   return data;
 }

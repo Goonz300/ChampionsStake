@@ -50,7 +50,7 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
   for (const row of candidates ?? []) {
     try {
-      await archiveTournament(row.id);
+      await archiveTournament(row.id, ctx.user?.id ?? null);
       archived += 1;
     } catch (err) {
       failures.push(row.id);

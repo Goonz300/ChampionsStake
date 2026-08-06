@@ -25,7 +25,11 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
   if (ctx.request.method === "PATCH") {
     const body = validateBody(bodySchema, await parseJsonBody(ctx.request));
-    const result = await toggleFeatureFlag(body.key, body.enabled);
+    const result = await toggleFeatureFlag(
+      body.key,
+      body.enabled,
+      ctx.user!.id,
+    );
     return successResponse(result);
   }
 

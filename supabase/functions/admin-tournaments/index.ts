@@ -70,7 +70,7 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
   const body = validateBody(postBodySchema, await parseJsonBody(ctx.request));
 
   if (body.action === "archive") {
-    await adminArchiveTournament(body.tournamentId);
+    await adminArchiveTournament(body.tournamentId, ctx.user!.id);
     return successResponse({ archived: true });
   }
 
