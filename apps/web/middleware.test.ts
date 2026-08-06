@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPublicPath, isAdminPath, isModerationPath } from "./middleware";
+import { isPublicPath, isAdminPath, isModerationPath, isMfaCompletionPath } from "./middleware";
 
 describe("isPublicPath", () => {
   it("treats the root and auth pages as public", () => {
@@ -52,5 +52,28 @@ describe("isModerationPath", () => {
     expect(isModerationPath("/admin/moderation")).toBe(true);
     expect(isModerationPath("/admin/moderation/disputes")).toBe(true);
     expect(isModerationPath("/admin/users")).toBe(false);
+  });
+});
+
+describe("isMfaCompletionPath", () => {
+  it("matches exactly the endpoints a pending-MFA session needs to finish or abandon login", () => {
+    expect(isMfaCompletionPath("/api/auth/mfa/verify")).toBe(true);
+    expect(isMfaCompletionPath("/api/auth/mfa/recovery-codes/verify")).toBe(true);
+    expect(isMfaCompletionPath("/api/auth/logout")).toBe(true);
+  });
+
+  it("does not match settings-only MFA endpoints, which correctly stay behind the pending-MFA gate", () => {
+    // Regression test: enroll/disable/regenerate all require a session that
+    // has ALREADY completed login, not one still pending its second factor
+    // — an mfa-completion allowlist that accidentally included these would
+    // reopen the gap this gate exists to close.
+    expect(isMfaCompletionPath("/api/auth/mfa/enroll")).toBe(false);
+    expect(isMfaCompletionPath("/api/auth/mfa/disable")).toBe(false);
+    expect(isMfaCompletionPath("/api/auth/mfa/recovery-codes/regenerate")).toBe(false);
+  });
+
+  it("does not match unrelated paths", () => {
+    expect(isMfaCompletionPath("/dashboard")).toBe(false);
+    expect(isMfaCompletionPath("/api/auth/login")).toBe(false);
   });
 });

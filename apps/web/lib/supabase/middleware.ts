@@ -2,11 +2,23 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { clientEnv } from "@/lib/env";
 import type { Database } from "@/lib/supabase/types";
+import { isSessionMfaVerifiedEdge } from "@/lib/auth/session-registry-edge";
 
 /**
  * Refreshes the Supabase session cookie on every request and returns both
  * the (possibly updated) response and the resolved user, so middleware.ts
  * can make routing decisions without a second round-trip.
+ *
+ * Also resolves `mfaSatisfied` (Phase 3C independent-review finding):
+ * whether THIS session has actually completed MFA, for any account that has
+ * a verified TOTP factor enrolled. Computed here, in the one place
+ * middleware already resolves the session, rather than as a second
+ * middleware-level check, per this phase's "extend, don't duplicate,
+ * session validation" instruction. `true` for accounts with no MFA
+ * enrolled (nothing to satisfy) or a real aal2 session (TOTP-verified);
+ * falls back to the migration-0074 user_sessions.mfa_verified_at marker for
+ * a login completed via a recovery code, which GoTrue's own aal2 can never
+ * reflect.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -38,5 +50,28 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response, user };
+  if (!user) {
+    return { response, user, mfaSatisfied: true };
+  }
+
+  const { data: factorsData } = await supabase.auth.mfa.listFactors();
+  const hasMfaEnrolled = (factorsData?.totp ?? []).some((f) => f.status === "verified");
+
+  if (!hasMfaEnrolled) {
+    return { response, user, mfaSatisfied: true };
+  }
+
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  if (aal?.currentLevel === "aal2") {
+    return { response, user, mfaSatisfied: true };
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const mfaSatisfied = session ? await isSessionMfaVerifiedEdge(session.refresh_token) : false;
+
+  return { response, user, mfaSatisfied };
 }
