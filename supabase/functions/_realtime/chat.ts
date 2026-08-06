@@ -196,17 +196,48 @@ export async function editMessage(
   });
 }
 
+/** True if the given challenge has an associated dispute -- the exact same
+ * condition challenge_messages_select_participant's moderator branch
+ * already uses (migration 0020) to grant moderators read access to a
+ * disputed challenge's chat. Reused here (Phase 4) so moderator DELETE
+ * authority is scoped identically to moderator READ authority, not
+ * granted more broadly than what RLS already establishes. */
+async function challengeHasDispute(challengeId: string): Promise<boolean> {
+  const supabase = getServiceRoleClient();
+  const { count } = await supabase
+    .from("disputes")
+    .select("id", { count: "exact", head: true })
+    .eq("challenge_id", challengeId);
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Phase 4 fix: this previously only allowed the original sender to delete
+ * their own message -- a moderator investigating a dispute had no way to
+ * remove abusive or rule-violating content. A moderator/administrator may
+ * now also delete a message, but ONLY in a challenge that actually has an
+ * associated dispute (see challengeHasDispute above) -- mirrors the
+ * existing moderator chat READ policy's scope exactly, rather than
+ * granting blanket delete authority over every chat on the platform.
+ */
 export async function deleteMessage(
   messageId: string,
-  senderId: string,
+  callerId: string,
+  callerIsModerator: boolean,
 ): Promise<void> {
   const supabase = getServiceRoleClient();
   const { data: message, error } = await supabase.from("challenge_messages")
     .select("*").eq("id", messageId).maybeSingle();
   if (error || !message) throw new NotFoundError("Message not found.");
 
-  if (message.sender_id !== senderId) {
-    throw new AuthorizationError("Only the sender may delete this message.");
+  const isSender = message.sender_id === callerId;
+  const isModeratingDispute = callerIsModerator &&
+    (await challengeHasDispute(message.challenge_id));
+
+  if (!isSender && !isModeratingDispute) {
+    throw new AuthorizationError(
+      "Only the sender, or a moderator handling this challenge's dispute, may delete this message.",
+    );
   }
 
   const { error: updateError } = await supabase
@@ -224,12 +255,13 @@ export async function deleteMessage(
   }
 
   await recordAudit({
-    actorId: senderId,
-    actorType: "user",
-    action: "MessageDeleted",
+    actorId: callerId,
+    actorType: isSender ? "user" : "moderator",
+    action: isSender ? "MessageDeleted" : "MessageDeletedByModerator",
     category: "system",
     targetTable: "challenge_messages",
     targetId: messageId,
+    metadata: isSender ? undefined : { challenge_id: message.challenge_id },
   });
 }
 
@@ -274,6 +306,53 @@ export async function getMessages(
   }
 
   return resolved;
+}
+
+/**
+ * Phase 4 addition: unread message counts per challenge, for the caller.
+ * "Unread" = not sent by the caller, not soft-deleted, and has no
+ * message_receipts row with seen_at set for this user -- reuses the same
+ * seen-tracking message_receipts already writes (markSeen), rather than
+ * introducing a separate per-challenge "last read" cursor. System messages
+ * (sender_id null) are excluded -- they're informational state-change
+ * notices already visible inline in the chat, not the kind of thing an
+ * "N unread" badge should be counting.
+ */
+export async function getUnreadCounts(
+  userId: string,
+): Promise<Record<string, number>> {
+  const supabase = getServiceRoleClient();
+
+  const { data: participations } = await supabase
+    .from("challenge_participants")
+    .select("challenge_id")
+    .eq("user_id", userId);
+  const challengeIds = (participations ?? []).map((p) =>
+    p.challenge_id as string
+  );
+  if (challengeIds.length === 0) return {};
+
+  const { data: seenRows } = await supabase
+    .from("message_receipts")
+    .select("message_id")
+    .eq("user_id", userId)
+    .not("seen_at", "is", null);
+  const seenIds = new Set((seenRows ?? []).map((r) => r.message_id as string));
+
+  const { data: messages } = await supabase
+    .from("challenge_messages")
+    .select("id, challenge_id")
+    .in("challenge_id", challengeIds)
+    .neq("sender_id", userId)
+    .is("deleted_at", null);
+
+  const counts: Record<string, number> = {};
+  for (const m of messages ?? []) {
+    if (seenIds.has(m.id as string)) continue;
+    const challengeId = m.challenge_id as string;
+    counts[challengeId] = (counts[challengeId] ?? 0) + 1;
+  }
+  return counts;
 }
 
 export async function markDelivered(

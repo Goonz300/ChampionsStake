@@ -9,10 +9,12 @@
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { isParticipant } from "../_challenge/repository.ts";
 import { AuthorizationError } from "../_shared/errors/index.ts";
+import { getUnreadCounts } from "./chat.ts";
 
 export interface SyncResult {
   notifications: unknown[];
   messages: Record<string, unknown[]>;
+  unreadCounts: Record<string, number>;
   serverTime: string;
 }
 
@@ -61,9 +63,12 @@ export async function syncSince(
     }
   }
 
+  const unreadCounts = await getUnreadCounts(userId);
+
   return {
     notifications: notifications ?? [],
     messages,
+    unreadCounts,
     serverTime: new Date().toISOString(),
   };
 }
