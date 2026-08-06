@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { forgotPasswordSchema } from "@/lib/auth/validation";
+import { isAuthActionRateLimited, recordAuthAction } from "@/lib/auth/rate-limit";
+import { getClientIp } from "@/lib/security/client-ip";
 
 /**
  * POST /api/auth/forgot-password
@@ -22,6 +24,19 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const ipAddress = getClientIp(request);
+
+  // Layer 3/6: IP-keyed, not email-keyed -- resolving this email to a real
+  // account pre-send would reopen the exact enumeration channel this route
+  // already deliberately avoids (see the "always returns 200" comment
+  // above). Verified unprotected by grep before this phase.
+  if (await isAuthActionRateLimited("forgot_password", ipAddress)) {
+    // Still never reveal anything -- just stop doing the (comparatively
+    // expensive) resetPasswordForEmail call once this IP is over budget.
+    return NextResponse.json({ data: { sent: true } });
+  }
+  await recordAuthAction("forgot_password", ipAddress);
 
   const supabase = await createClient();
   const origin = new URL(request.url).origin;

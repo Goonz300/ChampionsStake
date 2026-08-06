@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkAal2Required } from "@/lib/auth/mfa-enforcement";
+import { isAuthActionRateLimited, recordAuthAction } from "@/lib/auth/rate-limit";
 
 /**
  * POST /api/auth/mfa/enroll
@@ -11,9 +12,14 @@ import { checkAal2Required } from "@/lib/auth/mfa-enforcement";
  * (components/settings/MfaSection.tsx), which then confirms the
  * enrollment via mfa/verify.
  *
- * Not rate-limited, unlike mfa/verify/recovery-codes/verify: this endpoint
- * has no brute-forceable secret to guess (it only generates a fresh QR
- * code/secret for an already-authenticated caller).
+ * No FAILURE-count limiter, unlike mfa/verify/recovery-codes/verify: this
+ * endpoint has no brute-forceable secret to guess (it only generates a
+ * fresh QR code/secret for an already-authenticated caller). It DOES now
+ * carry a generic per-user ATTEMPT limiter (Phase 5, Layer 3 -- "MFA
+ * enrollment" is explicitly named alongside every other auth endpoint),
+ * since an authenticated caller could otherwise spam Supabase's own
+ * enroll() call to generate an unbounded number of live (unconfirmed,
+ * auto-expiring) factors.
  *
  * Gated behind checkAal2Required (Phase 3C independent-review finding):
  * for a FIRST-time enroller this is a no-op (satisfied:true, unaffected).
@@ -41,6 +47,19 @@ export async function POST() {
       { status: 401 },
     );
   }
+
+  if (await isAuthActionRateLimited("mfa_enroll", user.id, 10, 60)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many enrollment attempts. Try again later.",
+        },
+      },
+      { status: 429, headers: { "Retry-After": "3600" } },
+    );
+  }
+  await recordAuthAction("mfa_enroll", user.id);
 
   const { satisfied, hasMfaEnrolled, error: aal2Error } = await checkAal2Required(supabase);
 

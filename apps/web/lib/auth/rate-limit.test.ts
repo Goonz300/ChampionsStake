@@ -5,7 +5,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { isLoginRateLimited, isMfaVerifyRateLimited } from "./rate-limit";
+import { isAuthActionRateLimited, isLoginRateLimited, isMfaVerifyRateLimited } from "./rate-limit";
 
 describe("isLoginRateLimited", () => {
   beforeEach(() => {
@@ -124,5 +124,74 @@ describe("isMfaVerifyRateLimited", () => {
     // so a broken monitoring query must not remove brute-force resistance
     // on a 6-digit code. See the comment in rate-limit.ts.
     expect(result).toBe(true);
+  });
+});
+
+describe("isAuthActionRateLimited", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns false when under the default threshold (10)", async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          gte: vi.fn().mockReturnValue({
+            contains: vi.fn().mockResolvedValue({ count: 3, error: null }),
+          }),
+        }),
+      }),
+    });
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
+
+    const result = await isAuthActionRateLimited("register", "1.2.3.4");
+    expect(result).toBe(false);
+  });
+
+  it("returns true at or above the default threshold (10)", async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          gte: vi.fn().mockReturnValue({
+            contains: vi.fn().mockResolvedValue({ count: 10, error: null }),
+          }),
+        }),
+      }),
+    });
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
+
+    const result = await isAuthActionRateLimited("register", "1.2.3.4");
+    expect(result).toBe(true);
+  });
+
+  it("respects a custom threshold and window", async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          gte: vi.fn().mockReturnValue({
+            contains: vi.fn().mockResolvedValue({ count: 3, error: null }),
+          }),
+        }),
+      }),
+    });
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
+
+    expect(await isAuthActionRateLimited("mfa_enroll", "user-1", 3, 60)).toBe(true);
+  });
+
+  it("fails open on a query error", async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          gte: vi.fn().mockReturnValue({
+            contains: vi.fn().mockResolvedValue({ count: null, error: new Error("db down") }),
+          }),
+        }),
+      }),
+    });
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
+
+    const result = await isAuthActionRateLimited("register", "1.2.3.4");
+    expect(result).toBe(false);
   });
 });

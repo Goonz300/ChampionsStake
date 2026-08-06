@@ -27,11 +27,12 @@ const MAX_ATTEMPTS = 5;
  * for both.
  */
 async function countRecentFailures(
-  action: "LoginFailed" | "MfaVerifyFailed",
+  action: string,
   metadataMatch: Record<string, string>,
+  windowMinutes: number = WINDOW_MINUTES,
 ): Promise<number | null> {
   const supabase = createServiceRoleClient();
-  const since = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000).toISOString();
+  const since = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
 
   const { count, error } = await supabase
     .from("audit_logs")
@@ -132,5 +133,53 @@ export async function recordFailedMfaVerify(factorId: string): Promise<void> {
     p_target_table: "profiles",
     p_target_id: factorId,
     p_metadata: { factor_id: factorId },
+  });
+}
+
+const AUTH_ACTION_WINDOW_MINUTES = 15;
+const AUTH_ACTION_MAX_ATTEMPTS = 10;
+
+/**
+ * Generic per-(action, identity) rate limit for the auth endpoints that
+ * were previously entirely unprotected -- register, forgot-password,
+ * reset-password (all keyed by IP, pre-authentication), and mfa/enroll
+ * (keyed by user id, since the caller is already authenticated at that
+ * point) -- verified by grep before this phase (only login and mfa/verify
+ * had any limiter). One generic pair of functions rather than a bespoke
+ * isXRateLimited/recordX per route: these endpoints don't have a
+ * meaningful "failure" concept the way login does (forgot-password always
+ * returns 200 to avoid enumeration), so this limits ATTEMPTS, not
+ * failures, distinguished by `action` in the same audit_logs metadata
+ * shape rate-limit.ts already uses elsewhere. Fails open, same rationale
+ * as isLoginRateLimited -- these are all first-line, availability-sensitive
+ * endpoints, not a last line of defense like mfa/verify.
+ */
+export async function isAuthActionRateLimited(
+  action: string,
+  identity: string,
+  maxAttempts: number = AUTH_ACTION_MAX_ATTEMPTS,
+  windowMinutes: number = AUTH_ACTION_WINDOW_MINUTES,
+): Promise<boolean> {
+  const count = await countRecentFailures(
+    "AuthActionAttempted",
+    { action, identity },
+    windowMinutes,
+  );
+
+  if (count === null) return false;
+  return count >= maxAttempts;
+}
+
+export async function recordAuthAction(action: string, identity: string): Promise<void> {
+  const supabase = createServiceRoleClient();
+
+  await supabase.rpc("fn_write_audit_log", {
+    p_actor_id: null,
+    p_actor_type: "user",
+    p_action: "AuthActionAttempted",
+    p_category: "auth",
+    p_target_table: "profiles",
+    p_target_id: identity,
+    p_metadata: { action, identity },
   });
 }

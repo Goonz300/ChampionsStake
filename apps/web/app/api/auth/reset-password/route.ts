@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resetPasswordSchema } from "@/lib/auth/validation";
+import { isAuthActionRateLimited, recordAuthAction } from "@/lib/auth/rate-limit";
+import { getClientIp } from "@/lib/security/client-ip";
 
 /**
  * POST /api/auth/reset-password
@@ -24,6 +26,23 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const ipAddress = getClientIp(request);
+
+  // Layer 3: defense-in-depth on top of the recovery-session possession
+  // requirement below -- verified unprotected by grep before this phase.
+  if (await isAuthActionRateLimited("reset_password", ipAddress)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many attempts from this address. Try again later.",
+        },
+      },
+      { status: 429, headers: { "Retry-After": "900" } },
+    );
+  }
+  await recordAuthAction("reset_password", ipAddress);
 
   const supabase = await createClient();
 
