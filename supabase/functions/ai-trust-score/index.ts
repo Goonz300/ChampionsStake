@@ -10,12 +10,14 @@ import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { AuthenticationError } from "../_shared/errors/index.ts";
 import { config } from "../_shared/config/index.ts";
+import { timingSafeEqual } from "../_shared/security/signed-requests.ts";
 import { processTrustScoreEvents } from "../_ai/trust-score.ts";
 
 function isScheduledCall(request: Request): boolean {
   const authHeader = request.headers.get("Authorization");
   const secret = config.security.scheduledJobSharedSecret;
-  return Boolean(secret) && authHeader === `Bearer ${secret}`;
+  if (!secret || !authHeader) return false;
+  return timingSafeEqual(authHeader, `Bearer ${secret}`);
 }
 
 async function handler(ctx: EdgeContext): Promise<Response> {

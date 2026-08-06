@@ -16,12 +16,14 @@ import { requireAdministrator } from "../_shared/permissions/index.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { AuthenticationError } from "../_shared/errors/index.ts";
 import { config } from "../_shared/config/index.ts";
+import { timingSafeEqual } from "../_shared/security/signed-requests.ts";
 import { runReconciliation } from "../_wallet/reconciliation.ts";
 
 function isValidScheduledCall(request: Request): boolean {
   const authHeader = request.headers.get("Authorization");
   const expectedSecret = config.security.scheduledJobSharedSecret;
-  return Boolean(expectedSecret) && authHeader === `Bearer ${expectedSecret}`;
+  if (!expectedSecret || !authHeader) return false;
+  return timingSafeEqual(authHeader, `Bearer ${expectedSecret}`);
 }
 
 async function handler(ctx: EdgeContext): Promise<Response> {

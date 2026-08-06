@@ -27,7 +27,18 @@ async function hmacSha256Hex(secret: string, message: string): Promise<string> {
     .join("");
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
+/**
+ * Constant-time string comparison -- exported (Phase 3D independent-review
+ * finding) so every bearer-token/signature check in this codebase can reuse
+ * the ONE timing-safe comparison already implemented here, instead of each
+ * call site writing its own plain `===`/`!==` (a real, if low-severity,
+ * timing-attack surface: a naive comparison short-circuits on the first
+ * mismatched byte, leaking how many leading bytes of a guessed secret were
+ * correct). This was previously a private helper used only by
+ * verifyHmacSignature below; nothing about its behavior changes by
+ * exporting it.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let result = 0;
   for (let i = 0; i < a.length; i++) {

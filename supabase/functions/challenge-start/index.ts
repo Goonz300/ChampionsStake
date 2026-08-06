@@ -12,6 +12,7 @@ import { requirePlayer } from "../_shared/permissions/index.ts";
 import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { config } from "../_shared/config/index.ts";
+import { timingSafeEqual } from "../_shared/security/signed-requests.ts";
 import { startMatch } from "../_challenge/escrow-transition.ts";
 import { isParticipant } from "../_challenge/repository.ts";
 import { AuthorizationError } from "../_shared/errors/index.ts";
@@ -21,7 +22,8 @@ const bodySchema = z.object({ challengeId: z.string().uuid() });
 function isScheduledCall(request: Request): boolean {
   const authHeader = request.headers.get("Authorization");
   const secret = config.security.scheduledJobSharedSecret;
-  return Boolean(secret) && authHeader === `Bearer ${secret}`;
+  if (!secret || !authHeader) return false;
+  return timingSafeEqual(authHeader, `Bearer ${secret}`);
 }
 
 async function handler(ctx: EdgeContext): Promise<Response> {

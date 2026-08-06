@@ -23,6 +23,7 @@
 // supabase/migrations/0033_storage_cleanup_schedule.sql.
 
 import { createClient } from "@supabase/supabase-js";
+import { timingSafeEqual } from "../_shared/security/signed-requests.ts";
 
 const PENDING_GRACE_HOURS = 24;
 
@@ -40,7 +41,10 @@ Deno.serve(async (req: Request) => {
   // pg_net's http_post can attach a static bearer token configured at
   // schedule time; this is a defense-in-depth check so the function isn't
   // callable by anyone who merely learns its URL.
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (
+    !expectedSecret || !authHeader ||
+    !timingSafeEqual(authHeader, `Bearer ${expectedSecret}`)
+  ) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
     });

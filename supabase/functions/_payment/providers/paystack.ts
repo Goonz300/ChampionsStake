@@ -5,6 +5,7 @@
 // the provider-agnostic types from ../types.ts.
 
 import { createHmac } from "node:crypto";
+import { timingSafeEqual } from "../../_shared/security/signed-requests.ts";
 import type {
   CreateTransferRecipientInput,
   CreateTransferRecipientResult,
@@ -128,7 +129,7 @@ export const paystackProvider: PaymentProvider = {
       rawBody,
     ).digest("hex");
 
-    const valid = expectedSignature === signatureHeader;
+    const valid = timingSafeEqual(expectedSignature, signatureHeader);
     if (!valid) {
       return Promise.resolve({
         valid: false,
