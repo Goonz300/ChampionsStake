@@ -252,7 +252,7 @@ export async function readyCheck(
     });
     await recordChallengeEvent(challengeId, "ReadyStarted", callerId);
     await emit({
-      type: "ChallengeAccepted",
+      type: "ChallengeReadyStarted",
       payload: { challengeId, event: "ReadyStarted" },
       emittedBy: "challenge-ready",
     });
@@ -270,7 +270,7 @@ export async function readyCheck(
     await updateChallengeStatus(challengeId, { status: "countdown" });
     await recordChallengeEvent(challengeId, "CountdownStarted", null);
     await emit({
-      type: "ChallengeAccepted",
+      type: "ChallengeCountdownStarted",
       payload: { challengeId, event: "CountdownStarted" },
       emittedBy: "challenge-ready",
     });
@@ -332,7 +332,7 @@ export async function startMatch(challengeId: string): Promise<void> {
   });
 
   await emit({
-    type: "ChallengeAccepted",
+    type: "ChallengeMatchStarted",
     payload: { challengeId, event: "MatchStarted" },
     emittedBy: "challenge-start",
   });
@@ -393,7 +393,7 @@ export async function declareWinner(
     targetId: challengeId,
   });
   await emit({
-    type: "ChallengeAccepted",
+    type: "ChallengeWinnerSubmitted",
     payload: { challengeId, event: "WinnerSubmitted" },
     emittedBy: "challenge-declare-winner",
   });
@@ -733,5 +733,15 @@ export async function cancelChallenge(
     targetTable: "challenges",
     targetId: challengeId,
     metadata: { reason },
+  });
+
+  // Phase 4 event-contract fix: this function previously recorded a
+  // challenge_events row and an audit_logs row but never called emit() --
+  // domain_events (and therefore any notification/realtime consumer of
+  // it) never learned a challenge was cancelled.
+  await emit({
+    type: "ChallengeCancelled",
+    payload: { challengeId, reason },
+    emittedBy: "challenge-cancel",
   });
 }

@@ -28,6 +28,23 @@ export type DomainEventType =
   | "NotificationQueued"
   | "TournamentStarted"
   | "TournamentRoundCompleted"
+  // Phase 4 event-contract fix: these were previously emitted under
+  // whichever pre-existing type happened to be nearby (e.g. readyCheck's
+  // two distinct sub-events both emitted "ChallengeAccepted", with the
+  // real event name only in payload.event) -- any type-dispatching
+  // consumer (EVENT_RULES below) could not distinguish them. Each now has
+  // its own real type; payload.event fields were left in place rather
+  // than removed, since they're harmless and some callers may already
+  // read them.
+  | "ChallengeReadyStarted"
+  | "ChallengeCountdownStarted"
+  | "ChallengeMatchStarted"
+  | "ChallengeWinnerSubmitted"
+  | "ChallengeCompleted"
+  | "ChallengeCancelled"
+  | "ChallengeExpired"
+  | "ChallengeArchived"
+  | "AnnouncementPublished"
   // Wallet Engine events (WALLET-001):
   | "WalletCreated"
   | "WalletUpdated"

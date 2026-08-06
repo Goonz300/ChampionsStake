@@ -236,7 +236,7 @@ export async function expireChallenge(challengeId: string): Promise<void> {
   });
 
   await emit({
-    type: "ChallengeCreated",
+    type: "ChallengeExpired",
     payload: { challengeId, event: "ChallengeExpired" },
     emittedBy: "challenge-expire",
   });
@@ -255,7 +255,7 @@ export async function archiveChallenge(challengeId: string): Promise<void> {
   await updateChallengeStatus(challengeId, { status: "archived" });
   await recordChallengeEvent(challengeId, "ChallengeArchived", null);
   await emit({
-    type: "ChallengeCreated",
+    type: "ChallengeArchived",
     payload: { challengeId, event: "ChallengeArchived" },
     emittedBy: "challenge-archive",
   });
