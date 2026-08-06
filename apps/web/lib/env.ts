@@ -71,6 +71,17 @@ function getServerEnv() {
     UPSTASH_REDIS_URL: optional(process.env.UPSTASH_REDIS_URL),
     UPSTASH_REDIS_TOKEN: optional(process.env.UPSTASH_REDIS_TOKEN),
     SENTRY_DSN: optional(process.env.SENTRY_DSN),
+    // See lib/security/client-ip.ts — how many trusted reverse-proxy hops
+    // sit between the real client and this app (e.g. 1 for a single
+    // CDN/edge hop such as Cloudflare in front of Vercel).
+    TRUSTED_PROXY_HOPS: optional(process.env.TRUSTED_PROXY_HOPS),
+    CAPTCHA_PROVIDER: optional(process.env.CAPTCHA_PROVIDER),
+    CAPTCHA_SECRET_KEY: optional(process.env.CAPTCHA_SECRET_KEY),
+    CAPTCHA_TRIGGER_AFTER_FAILURES: optional(process.env.CAPTCHA_TRIGGER_AFTER_FAILURES),
+    LOCKOUT_FAILURES_TO_LOCK: optional(process.env.LOCKOUT_FAILURES_TO_LOCK),
+    LOCKOUT_INITIAL_MINUTES: optional(process.env.LOCKOUT_INITIAL_MINUTES),
+    LOCKOUT_MAX_MINUTES: optional(process.env.LOCKOUT_MAX_MINUTES),
+    PROGRESSIVE_DELAY_STEPS_SECONDS: optional(process.env.PROGRESSIVE_DELAY_STEPS_SECONDS),
   } as const;
 }
 

@@ -79,11 +79,8 @@ class PostgresFallbackBackend implements RateLimitBackend {
 }
 
 function getBackend(): RateLimitBackend {
-  const upstashUrl = Deno.env.get("UPSTASH_REDIS_URL");
-  const upstashToken = Deno.env.get("UPSTASH_REDIS_TOKEN");
-
-  if (upstashUrl && upstashToken) {
-    return new UpstashBackend(upstashUrl, upstashToken);
+  if (config.redis.isConfigured) {
+    return new UpstashBackend(config.redis.url, config.redis.token);
   }
 
   console.warn(

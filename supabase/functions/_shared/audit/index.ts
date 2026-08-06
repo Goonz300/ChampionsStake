@@ -10,6 +10,7 @@
 
 import { getServiceRoleClient } from "../database/client.ts";
 import { logger } from "../logger/index.ts";
+import { getClientIp } from "../security/client-ip.ts";
 
 export type ActorType = "user" | "moderator" | "administrator" | "system";
 export type AuditCategory =
@@ -76,10 +77,6 @@ export async function recordAudit(entry: AuditEntryInput): Promise<void> {
 export function extractRequestContext(
   request: Request,
 ): { ipAddress: string | null; userAgent: string | null } {
-  const ipAddress =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      request.headers.get("x-real-ip") ??
-      null;
   const userAgent = request.headers.get("user-agent");
-  return { ipAddress, userAgent };
+  return { ipAddress: getClientIp(request), userAgent };
 }

@@ -5,14 +5,7 @@ import { isLoginRateLimited, recordFailedLogin } from "@/lib/auth/rate-limit";
 import { deriveDeviceFingerprint, recordDevice } from "@/lib/auth/device";
 import { recordSession } from "@/lib/auth/session-registry";
 import { notifySecurityEvent } from "@/lib/auth/security-notifications";
-
-function getClientIp(request: NextRequest): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "0.0.0.0"
-  );
-}
+import { getClientIp } from "@/lib/security/client-ip";
 
 /**
  * POST /api/auth/login
