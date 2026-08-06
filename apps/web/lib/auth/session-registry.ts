@@ -85,6 +85,21 @@ export async function invalidateAllSessionsForUser(
   return { error };
 }
 
+/**
+ * Marks the current session (matched by refresh_token_hash, migration 0074)
+ * as having completed login via a recovery code -- the one login-completion
+ * path GoTrue's own aal2 cannot represent, since GoTrue has no concept of
+ * recovery codes. Called only from /api/auth/mfa/recovery-codes/verify.
+ */
+export async function markSessionMfaVerified(refreshToken: string): Promise<void> {
+  const supabase = createServiceRoleClient();
+
+  await supabase
+    .from("user_sessions")
+    .update({ mfa_verified_at: new Date().toISOString() })
+    .eq("refresh_token_hash", hashToken(refreshToken));
+}
+
 export interface SessionListItem {
   id: string;
   device_id: string | null;

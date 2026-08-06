@@ -57,3 +57,52 @@ export async function recordFailedLogin(email: string, ipAddress: string): Promi
     p_metadata: { email, ip_address: ipAddress },
   });
 }
+
+/**
+ * MFA verification rate limiting (Phase 3 Architecture Rev. 2, §5), same
+ * shape as isLoginRateLimited but keyed by factorId (the caller is already
+ * authenticated at this point, unlike login) and, deliberately, the
+ * opposite fail-safe direction: login fails OPEN on a rate-limit-check
+ * error because it's a first-line, high-availability-priority control,
+ * where a false positive locks a legitimate user out of the front door.
+ * mfa/verify is the LAST line of defense against account takeover for an
+ * already-password-verified session -- failing open here would remove
+ * brute-force resistance on a 6-digit TOTP code (1,000,000 possibilities)
+ * at exactly the moment a DB hiccup (or an attacker deliberately inducing
+ * one) might also be degrading other defenses. A false positive here costs
+ * a legitimate user one retry after a transient error; a false negative
+ * costs an account.
+ */
+export async function isMfaVerifyRateLimited(factorId: string): Promise<boolean> {
+  const supabase = createServiceRoleClient();
+
+  const since = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000).toISOString();
+
+  const { count, error } = await supabase
+    .from("audit_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("action", "MfaVerifyFailed")
+    .gte("created_at", since)
+    .contains("metadata", { factor_id: factorId });
+
+  if (error) {
+    console.error("MFA rate-limit check failed, blocking the attempt (fail closed):", error);
+    return true;
+  }
+
+  return (count ?? 0) >= MAX_ATTEMPTS;
+}
+
+export async function recordFailedMfaVerify(factorId: string): Promise<void> {
+  const supabase = createServiceRoleClient();
+
+  await supabase.rpc("fn_write_audit_log", {
+    p_actor_id: null,
+    p_actor_type: "user",
+    p_action: "MfaVerifyFailed",
+    p_category: "auth",
+    p_target_table: "profiles",
+    p_target_id: factorId,
+    p_metadata: { factor_id: factorId },
+  });
+}

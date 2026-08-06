@@ -8,6 +8,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   invalidateAllSessionsForUser,
   listSessionsForUser,
+  markSessionMfaVerified,
   recordSession,
   revokeAllSessionsForUser,
   revokeOtherSessions,
@@ -290,5 +291,28 @@ describe("revokeOtherSessions", () => {
     const result = await revokeOtherSessions("user-1", "current-raw-token");
 
     expect(result.error).toBe(dbError);
+  });
+});
+
+describe("markSessionMfaVerified", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sets mfa_verified_at on the row matching the token's hash, never the raw token", async () => {
+    const eqMock = vi.fn().mockResolvedValue({ error: null });
+    const updateMock = vi.fn().mockReturnValue({ eq: eqMock });
+    const mockFrom = vi.fn().mockReturnValue({ update: updateMock });
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: mockFrom } as never);
+
+    await markSessionMfaVerified("raw-refresh-token");
+
+    expect(mockFrom).toHaveBeenCalledWith("user_sessions");
+    const updatePayload = updateMock.mock.calls[0]![0];
+    expect(updatePayload.mfa_verified_at).toBeTruthy();
+    expect(eqMock).toHaveBeenCalledWith(
+      "refresh_token_hash",
+      expect.stringMatching(/^[0-9a-f]{64}$/),
+    );
   });
 });
