@@ -102,7 +102,7 @@ Deno.test("computeNextRound pairs winners in bracket order", () => {
 Deno.test("double elimination throws a clear not-implemented error rather than silently producing a wrong bracket", () => {
   let threw = false;
   try {
-    doubleEliminationGenerator.generate();
+    doubleEliminationGenerator.generate([]);
   } catch (err) {
     threw = true;
     assertEquals(err instanceof Error, true);
