@@ -98,7 +98,17 @@ export async function POST(request: NextRequest) {
   const acceptLanguage = request.headers.get("accept-language") ?? "";
   const fingerprint = deriveDeviceFingerprint(userAgent, acceptLanguage, ipAddress);
 
-  const { deviceId } = await recordDevice(data.user.id, fingerprint, null, userAgent);
+  // Layer 5: CF-IPCountry is set by Cloudflare itself (Layer 1 assumption)
+  // -- no external GeoIP lookup performed; null when not present.
+  const countryCode = request.headers.get("cf-ipcountry");
+  const { deviceId } = await recordDevice(
+    data.user.id,
+    fingerprint,
+    null,
+    userAgent,
+    ipAddress,
+    countryCode,
+  );
   await recordSession(
     data.user.id,
     data.session.refresh_token,

@@ -27,6 +27,31 @@ export interface RecordDeviceResult {
 }
 
 /**
+ * Layer 5 (Device Fingerprinting -- IP history). One row per login, not
+ * just first-seen, since multi-account/account-farming detection needs the
+ * recent IP set for a device, not just devices.last_ip_address's single
+ * most-recent value (migration 0080). Fire-and-isolate, same as the
+ * NewDeviceLogin audit call below -- never fails the login itself.
+ */
+async function recordDeviceIpHistory(
+  deviceId: string,
+  ipAddress: string | null,
+  countryCode: string | null,
+): Promise<void> {
+  if (!ipAddress) return;
+  const supabase = createServiceRoleClient();
+  try {
+    await supabase.from("device_ip_history").insert({
+      device_id: deviceId,
+      ip_address: ipAddress,
+      country_code: countryCode,
+    });
+  } catch (err) {
+    console.error("Failed to record device IP history (non-fatal):", err);
+  }
+}
+
+/**
  * Upserts a device record for the user. Runs as service_role because
  * `devices` has no client INSERT policy (DB-002: "fingerprints are recorded
  * server-side at login"). Returns the row's id (to link
@@ -45,6 +70,8 @@ export async function recordDevice(
   fingerprint: string,
   platform: string | null,
   userAgent: string | null,
+  ipAddress: string | null = null,
+  countryCode: string | null = null,
 ): Promise<RecordDeviceResult> {
   const supabase = createServiceRoleClient();
 
@@ -58,14 +85,26 @@ export async function recordDevice(
   if (existing) {
     await supabase
       .from("devices")
-      .update({ last_seen_at: new Date().toISOString() })
+      .update({
+        last_seen_at: new Date().toISOString(),
+        ...(ipAddress ? { last_ip_address: ipAddress } : {}),
+        ...(countryCode ? { country_code: countryCode } : {}),
+      })
       .eq("id", existing.id);
+    await recordDeviceIpHistory(existing.id, ipAddress, countryCode);
     return { deviceId: existing.id, isNewDevice: false };
   }
 
   const { data: inserted, error: insertError } = await supabase
     .from("devices")
-    .insert({ user_id: userId, device_fingerprint: fingerprint, platform, user_agent: userAgent })
+    .insert({
+      user_id: userId,
+      device_fingerprint: fingerprint,
+      platform,
+      user_agent: userAgent,
+      last_ip_address: ipAddress,
+      country_code: countryCode,
+    })
     .select("id")
     .single();
 
@@ -73,6 +112,8 @@ export async function recordDevice(
     console.error("Failed to record new device:", insertError);
     return { deviceId: null, isNewDevice: true };
   }
+
+  await recordDeviceIpHistory(inserted.id, ipAddress, countryCode);
 
   try {
     await supabase.rpc("fn_write_audit_log", {

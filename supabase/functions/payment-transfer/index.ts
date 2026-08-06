@@ -15,6 +15,9 @@ import {
   createPayoutMethod,
   requestWithdrawal,
 } from "../_payment/withdrawal-service.ts";
+import { getServiceRoleClient } from "../_shared/database/client.ts";
+import { checkVelocity } from "../_shared/security/velocity.ts";
+import { config } from "../_shared/config/index.ts";
 
 const bodySchema = z.discriminatedUnion("action", [
   z.object({
@@ -54,6 +57,25 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       body.amountCents,
       idempotencyKey,
     );
+
+    // Layer 6 (Velocity Detection): flags, never blocks -- the withdrawal
+    // above has already been submitted by the time this runs.
+    const { windowSeconds, maxCount } = config.fraud.withdrawalVelocity;
+    const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
+    const { count } = await getServiceRoleClient()
+      .from("payment_intents")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", ctx.user!.id)
+      .eq("kind", "withdrawal")
+      .gte("created_at", since);
+    await checkVelocity({
+      userId: ctx.user!.id,
+      signal: "withdrawal",
+      count: count ?? 0,
+      maxCount,
+      windowSeconds,
+    });
+
     return successResponse(result, { status: 201 });
   }
 

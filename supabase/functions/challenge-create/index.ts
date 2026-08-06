@@ -11,6 +11,9 @@ import {
   createChallenge,
   createChallengeSchema,
 } from "../_challenge/workflow.ts";
+import { getServiceRoleClient } from "../_shared/database/client.ts";
+import { checkVelocity } from "../_shared/security/velocity.ts";
+import { config } from "../_shared/config/index.ts";
 
 async function handler(ctx: EdgeContext): Promise<Response> {
   requireVerifiedPlayer(ctx.profile!);
@@ -20,6 +23,23 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     await parseJsonBody(ctx.request),
   );
   const result = await createChallenge(ctx.user!.id, body);
+
+  // Layer 6 (Velocity Detection): flags, never blocks -- the challenge
+  // above has already been created by the time this runs.
+  const { windowSeconds, maxCount } = config.fraud.challengeCreationVelocity;
+  const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
+  const { count } = await getServiceRoleClient()
+    .from("challenges")
+    .select("id", { count: "exact", head: true })
+    .eq("creator_id", ctx.user!.id)
+    .gte("created_at", since);
+  await checkVelocity({
+    userId: ctx.user!.id,
+    signal: "challenge_creation",
+    count: count ?? 0,
+    maxCount,
+    windowSeconds,
+  });
 
   return successResponse(result, { status: 201 });
 }

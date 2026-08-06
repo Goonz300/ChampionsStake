@@ -99,6 +99,8 @@ describe("recordDevice", () => {
       device_fingerprint: "fingerprint-new",
       platform: "web",
       user_agent: "Mozilla/5.0 New",
+      last_ip_address: null,
+      country_code: null,
     });
     // The audit event must reference the actual new row, not a placeholder.
     expect(rpcMock).toHaveBeenCalledWith(
@@ -110,6 +112,37 @@ describe("recordDevice", () => {
         p_actor_id: "user-1",
       }),
     );
+  });
+
+  it("records device_ip_history and last_ip_address/country_code when an IP is supplied", async () => {
+    const maybeSingleMock = vi.fn().mockResolvedValue({ data: { id: "device-1" } });
+    const eqLookup2 = vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock });
+    const eqLookup1 = vi.fn().mockReturnValue({ eq: eqLookup2 });
+    const selectMock = vi.fn().mockReturnValue({ eq: eqLookup1 });
+
+    const eqUpdate = vi.fn().mockResolvedValue({ error: null });
+    const updateMock = vi.fn().mockReturnValue({ eq: eqUpdate });
+
+    const ipHistoryInsertMock = vi.fn().mockResolvedValue({ error: null });
+    const fromMock = vi.fn().mockReturnValue({
+      select: selectMock,
+      update: updateMock,
+      insert: ipHistoryInsertMock,
+    });
+
+    vi.mocked(createServiceRoleClient).mockReturnValue({ from: fromMock } as never);
+
+    await recordDevice("user-1", "fingerprint-abc", null, "Mozilla/5.0", "203.0.113.9", "NG");
+
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ last_ip_address: "203.0.113.9", country_code: "NG" }),
+    );
+    expect(fromMock).toHaveBeenCalledWith("device_ip_history");
+    expect(ipHistoryInsertMock).toHaveBeenCalledWith({
+      device_id: "device-1",
+      ip_address: "203.0.113.9",
+      country_code: "NG",
+    });
   });
 
   it("does not fail the caller if the audit log RPC itself throws (fire-and-isolate)", async () => {
