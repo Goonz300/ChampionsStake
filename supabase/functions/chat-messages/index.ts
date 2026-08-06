@@ -50,7 +50,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "chat-messages", auth: "required" },
+    {
+      functionName: "chat-messages",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `chat-messages:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 60,
+      }),
+    },
     handler,
   ),
 );

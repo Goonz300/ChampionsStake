@@ -50,7 +50,15 @@ Deno.serve(
     // the shared secret) doesn't get rejected before handler() can check
     // isValidScheduledCall — the handler itself enforces one of the two
     // valid auth paths, never falling through to "neither".
-    { functionName: "wallet-reconciliation", auth: "optional" },
+    {
+      functionName: "wallet-reconciliation",
+      auth: "optional",
+      rateLimit: (ctx) => ({
+        key: `wallet-reconciliation:${ctx.user?.id ?? "scheduled"}`,
+        windowSeconds: 60,
+        maxRequests: 5,
+      }),
+    },
     handler,
   ),
 );

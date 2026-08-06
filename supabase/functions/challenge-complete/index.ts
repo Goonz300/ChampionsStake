@@ -29,7 +29,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "challenge-complete", auth: "required" },
+    {
+      functionName: "challenge-complete",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `challenge-complete:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 10,
+      }),
+    },
     handler,
   ),
 );

@@ -32,7 +32,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "ai-trust-score", auth: "optional" },
+    {
+      functionName: "ai-trust-score",
+      auth: "optional",
+      rateLimit: (ctx) => ({
+        key: `ai-trust-score:${ctx.user?.id ?? "scheduled"}`,
+        windowSeconds: 60,
+        maxRequests: 5,
+      }),
+    },
     handler,
   ),
 );

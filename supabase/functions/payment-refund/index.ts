@@ -31,7 +31,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "payment-refund", auth: "required" },
+    {
+      functionName: "payment-refund",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `payment-refund:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 5,
+      }),
+    },
     handler,
   ),
 );

@@ -27,5 +27,10 @@ Deno.serve(
   withEdgeFunction({
     functionName: "tournament-advance-player",
     auth: "required",
+    rateLimit: (ctx) => ({
+      key: `tournament-advance-player:${ctx.user!.id}`,
+      windowSeconds: 60,
+      maxRequests: 10,
+    }),
   }, handler),
 );

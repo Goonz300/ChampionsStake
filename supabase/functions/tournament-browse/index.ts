@@ -12,6 +12,7 @@ import { validateQuery } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
+import { getClientIp } from "../_shared/security/client-ip.ts";
 
 const querySchema = z.object({
   view: z.enum(["list", "bracket", "standings", "participants"]).default(
@@ -73,7 +74,17 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "tournament-browse", auth: "optional" },
+    {
+      functionName: "tournament-browse",
+      auth: "optional",
+      rateLimit: (ctx) => ({
+        key: `tournament-browse:${
+          ctx.user?.id ?? `ip:${getClientIp(ctx.request) ?? "unknown"}`
+        }`,
+        windowSeconds: 60,
+        maxRequests: 60,
+      }),
+    },
     handler,
   ),
 );

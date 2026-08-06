@@ -46,5 +46,13 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 }
 
 Deno.serve(
-  withEdgeFunction({ functionName: "mark-read", auth: "required" }, handler),
+  withEdgeFunction({
+    functionName: "mark-read",
+    auth: "required",
+    rateLimit: (ctx) => ({
+      key: `mark-read:${ctx.user!.id}`,
+      windowSeconds: 60,
+      maxRequests: 60,
+    }),
+  }, handler),
 );

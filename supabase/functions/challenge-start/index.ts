@@ -44,7 +44,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "challenge-start", auth: "optional" },
+    {
+      functionName: "challenge-start",
+      auth: "optional",
+      rateLimit: (ctx) => ({
+        key: `challenge-start:${ctx.user?.id ?? "scheduled"}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
+    },
     handler,
   ),
 );

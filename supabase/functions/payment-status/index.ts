@@ -40,7 +40,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "payment-status", auth: "required" },
+    {
+      functionName: "payment-status",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `payment-status:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 30,
+      }),
+    },
     handler,
   ),
 );

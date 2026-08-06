@@ -35,7 +35,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "wallet-create", auth: "required" },
+    {
+      functionName: "wallet-create",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `wallet-create:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 5,
+      }),
+    },
     handler,
   ),
 );

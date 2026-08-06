@@ -23,7 +23,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "tournament-complete", auth: "required" },
+    {
+      functionName: "tournament-complete",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `tournament-complete:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 10,
+      }),
+    },
     handler,
   ),
 );

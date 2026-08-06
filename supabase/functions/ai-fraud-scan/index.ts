@@ -66,7 +66,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "ai-fraud-scan", auth: "optional" },
+    {
+      functionName: "ai-fraud-scan",
+      auth: "optional",
+      rateLimit: (ctx) => ({
+        key: `ai-fraud-scan:${ctx.user?.id ?? "scheduled"}`,
+        windowSeconds: 60,
+        maxRequests: 5,
+      }),
+    },
     handler,
   ),
 );

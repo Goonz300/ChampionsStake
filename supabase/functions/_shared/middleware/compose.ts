@@ -9,6 +9,7 @@ import {
   enforceRateLimit,
   type RateLimitOptions,
 } from "../security/rate-limit.ts";
+import { getClientIp } from "../security/client-ip.ts";
 import {
   type AuthenticatedUser,
   verifyOptionalRequestJwt,
@@ -90,6 +91,19 @@ export function withEdgeFunction(
         if (options.rateLimit) {
           const rl = options.rateLimit(ctx);
           if (rl) await enforceRateLimit(rl);
+        } else {
+          // Layer 2 (Global API Rate Limiter): a function that never opted
+          // into an endpoint-specific limit still gets the configured
+          // default (EDGE_RATE_LIMIT_WINDOW_SECONDS/MAX_REQUESTS) rather
+          // than no protection at all. Keyed by user when authenticated,
+          // else by IP, scoped per function so one anonymous endpoint's
+          // traffic can't exhaust another's budget.
+          const identity = user
+            ? `user:${user.id}`
+            : `ip:${getClientIp(request) ?? "unknown"}`;
+          await enforceRateLimit({
+            key: `global:${options.functionName}:${identity}`,
+          });
         }
 
         return handler(ctx);

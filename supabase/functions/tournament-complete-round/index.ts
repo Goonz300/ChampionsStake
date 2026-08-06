@@ -37,5 +37,10 @@ Deno.serve(
   withEdgeFunction({
     functionName: "tournament-complete-round",
     auth: "optional",
+    rateLimit: (ctx) => ({
+      key: `tournament-complete-round:${ctx.user?.id ?? "scheduled"}`,
+      windowSeconds: 60,
+      maxRequests: 10,
+    }),
   }, handler),
 );

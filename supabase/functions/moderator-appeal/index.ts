@@ -73,7 +73,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "moderator-appeal", auth: "required" },
+    {
+      functionName: "moderator-appeal",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `moderator-appeal:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
+    },
     handler,
   ),
 );

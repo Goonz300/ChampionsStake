@@ -103,7 +103,15 @@ function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "admin-wallets", auth: "required" },
+    {
+      functionName: "admin-wallets",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `admin-wallets:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 30,
+      }),
+    },
     handler,
   ),
 );

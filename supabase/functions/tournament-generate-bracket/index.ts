@@ -23,5 +23,10 @@ Deno.serve(
   withEdgeFunction({
     functionName: "tournament-generate-bracket",
     auth: "required",
+    rateLimit: (ctx) => ({
+      key: `tournament-generate-bracket:${ctx.user!.id}`,
+      windowSeconds: 60,
+      maxRequests: 10,
+    }),
   }, handler),
 );

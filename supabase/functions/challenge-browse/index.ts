@@ -9,6 +9,7 @@ import { validateQuery } from "../_shared/validation/validate.ts";
 import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { paginatedResponse } from "../_shared/response/index.ts";
 import { browseChallenges } from "../_challenge/workflow.ts";
+import { getClientIp } from "../_shared/security/client-ip.ts";
 
 const querySchema = paginationQuerySchema.extend({
   gameId: z.string().uuid().optional(),
@@ -54,7 +55,17 @@ Deno.serve(
   // Public/browse endpoint — visitors and authenticated players alike may
   // browse (Business Rules: public challenges are readable by anyone).
   withEdgeFunction(
-    { functionName: "challenge-browse", auth: "optional" },
+    {
+      functionName: "challenge-browse",
+      auth: "optional",
+      rateLimit: (ctx) => ({
+        key: `challenge-browse:${
+          ctx.user?.id ?? `ip:${getClientIp(ctx.request) ?? "unknown"}`
+        }`,
+        windowSeconds: 60,
+        maxRequests: 60,
+      }),
+    },
     handler,
   ),
 );

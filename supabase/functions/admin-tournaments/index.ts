@@ -87,7 +87,15 @@ function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "admin-tournaments", auth: "required" },
+    {
+      functionName: "admin-tournaments",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `admin-tournaments:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 30,
+      }),
+    },
     handler,
   ),
 );

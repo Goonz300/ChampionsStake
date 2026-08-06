@@ -60,7 +60,15 @@ function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "challenge-update", auth: "required" },
+    {
+      functionName: "challenge-update",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `challenge-update:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
+    },
     handler,
   ),
 );

@@ -33,7 +33,15 @@ async function handler(ctx: EdgeContext): Promise<Response> {
 
 Deno.serve(
   withEdgeFunction(
-    { functionName: "moderator-escalate", auth: "required" },
+    {
+      functionName: "moderator-escalate",
+      auth: "required",
+      rateLimit: (ctx) => ({
+        key: `moderator-escalate:${ctx.user!.id}`,
+        windowSeconds: 60,
+        maxRequests: 20,
+      }),
+    },
     handler,
   ),
 );
