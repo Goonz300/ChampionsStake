@@ -108,6 +108,7 @@ export interface Database {
           expires_at: string;
           revoked_at: string | null;
           updated_at: string;
+          mfa_verified_at: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["user_sessions"]["Row"]> & {
           user_id: string;
@@ -115,6 +116,37 @@ export interface Database {
           expires_at: string;
         };
         Update: Partial<Database["public"]["Tables"]["user_sessions"]["Row"]>;
+      };
+      mfa_recovery_codes: {
+        Row: {
+          id: string;
+          user_id: string;
+          code_hash: string;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["mfa_recovery_codes"]["Row"]> & {
+          user_id: string;
+          code_hash: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["mfa_recovery_codes"]["Row"]>;
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: string;
+          category: string;
+          payload: Record<string, unknown>;
+          status: "unread" | "read";
+          created_at: string;
+          read_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["notifications"]["Row"]> & {
+          user_id: string;
+          type: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
       };
       feature_flags: {
         Row: {

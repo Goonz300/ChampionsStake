@@ -92,3 +92,23 @@ Session & device management, per the approved Phase 3 Architecture Rev. 2, §8/�
 **Note:** the architecture document's §8 also lists `user_sessions.ip_address`/`user_agent` as missing — verified against the actual schema before writing this migration, both already existed since 0003 and are already written by `recordSession`. Not re-added here; the architecture document has a stale claim on this point.
 
 Not safe to re-run (bare `alter table add column`, same convention as the rest of this file).
+
+## Phase 3C addition (0073)
+
+MFA & recovery codes, per the approved Phase 3 Architecture Rev. 2, §5/§12 — deferred there until MFA enforcement was actually being built. Purely additive.
+
+| # | File | Creates |
+|---|---|---|
+| 0073 | `mfa_recovery_codes_table.sql` | `mfa_recovery_codes` (`id, user_id, code_hash, used_at, created_at`) — hash-only, one-time-use MFA backup codes. RLS owner-select/staff-select only, no client write (matches `devices`/`user_sessions`/`moderator_actions` convention). |
+
+Not safe to re-run (bare `create table`, same convention as 0001–0013/0065–0072's non-seed files).
+
+## Phase 3C addition (0074)
+
+Independent-review finding, not part of the original milestone list: without this column, middleware had no way to tell "a session that finished login via a recovery code" apart from "a session that never completed MFA at all" — both look identical to GoTrue's own aal2 signal, since GoTrue has no concept of recovery codes. Purely additive.
+
+| # | File | Creates |
+|---|---|---|
+| 0074 | `session_mfa_verified_column.sql` | `user_sessions.mfa_verified_at` (nullable `timestamptz`) — set only when a session completed login via a recovery code; read by middleware as a fallback MFA-satisfied signal alongside aal2. |
+
+Not safe to re-run (bare `alter table add column`, same convention as the rest of this file).
