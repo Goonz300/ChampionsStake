@@ -87,5 +87,27 @@ export const config = {
       return optionalEnv("EDGE_SCHEDULED_JOB_SHARED_SECRET", "");
     },
   },
+  // Phase 4: the actual push/email sender migration 0065 explicitly
+  // deferred to "a future Edge Function phase." resendApiKey is optional
+  // (not requiredEnv) -- a deployment that hasn't configured it yet must
+  // not crash on module load; the email worker checks for its presence
+  // itself and logs/skips rather than throwing. Matches migration 0065's
+  // own comment: 'resend' is the only email_provider actually wired up.
+  notifications: {
+    get resendApiKey() {
+      return optionalEnv("RESEND_API_KEY", "");
+    },
+    get resendFromAddress() {
+      return optionalEnv(
+        "RESEND_FROM_ADDRESS",
+        "notifications@championsstake.app",
+      );
+    },
+    // Expo's push API accepts unauthenticated requests; an access token
+    // only raises rate limits. Optional for the same reason as above.
+    get expoAccessToken() {
+      return optionalEnv("EXPO_ACCESS_TOKEN", "");
+    },
+  },
   environment: optionalEnv("EDGE_ENVIRONMENT", "development"),
 } as const;

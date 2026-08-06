@@ -13,6 +13,7 @@
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { logger } from "../_shared/logger/index.ts";
 import type { NotificationCategory } from "./types.ts";
+import { enqueueEmailNotification, sendPushNotification } from "./delivery.ts";
 
 interface EventToNotificationRule {
   category: NotificationCategory;
@@ -39,6 +40,30 @@ async function tournamentCreatorId(tournamentId: unknown): Promise<string[]> {
     tournamentId,
   ).maybeSingle();
   return data ? [data.created_by as string] : [];
+}
+
+/**
+ * Phase 4 fix: chat.ts's sendMessage and escrow-transition.ts's
+ * acceptChallenge both emit type "NotificationQueued" (a generic "please
+ * notify someone" signal, distinguished only by payload.reason), but no
+ * EVENT_RULES entry existed for that type at all -- every chat-message and
+ * chat-opened notification was silently dropped by processUnhandledEvents'
+ * own "no rule -> mark processed, move on" fallback, despite the emit call
+ * making it look wired up. For chat_message specifically, the sender is
+ * excluded from their own notification.
+ */
+async function chatNotificationRecipients(
+  payload: Record<string, unknown>,
+): Promise<string[]> {
+  const reason = payload.reason;
+  if (reason === "chat_message") {
+    const participants = await challengeParticipantIds(payload.challengeId);
+    return participants.filter((id) => id !== payload.senderId);
+  }
+  if (reason === "chat_opened") {
+    return challengeParticipantIds(payload.challengeId);
+  }
+  return [];
 }
 
 /**
@@ -84,6 +109,32 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
     preferenceKey: "tournament_updates",
     resolveRecipients: (p) => tournamentCreatorId(p.tournamentId),
   },
+  // Phase 4 additions. Deliberately still not exhaustive over every
+  // challenge-lifecycle type this phase's event-contract fix introduced
+  // (ChallengeReadyStarted/CountdownStarted/MatchStarted/WinnerSubmitted) --
+  // those happen while both participants are actively in the match UI,
+  // which already gets realtime updates via Postgres Changes on the
+  // `challenges` table itself; a duplicate notification for them has no
+  // clear value the way "your match finished" or "your match was
+  // cancelled" (below) does. No dedicated "chat" notification_category
+  // exists (migration 0052's 10 categories), so chat notifications reuse
+  // "challenge" -- chat is inherently challenge-scoped, and adding a new
+  // enum value for this alone isn't a genuinely required migration.
+  ChallengeCompleted: {
+    category: "challenge",
+    preferenceKey: "challenge_updates",
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
+  },
+  ChallengeCancelled: {
+    category: "challenge",
+    preferenceKey: "challenge_updates",
+    resolveRecipients: (p) => challengeParticipantIds(p.challengeId),
+  },
+  NotificationQueued: {
+    category: "challenge",
+    preferenceKey: "chat_messages",
+    resolveRecipients: (p) => chatNotificationRecipients(p),
+  },
 };
 
 async function isCategoryEnabled(
@@ -102,6 +153,33 @@ async function isCategoryEnabled(
     { push?: boolean }
   >;
   return prefs?.[preferenceKey]?.push !== false;
+}
+
+/**
+ * Phase 4 addition: the email channel has its own preference key
+ * (user_preferences' default jsonb already ships a distinct `email`
+ * boolean per category, migration 0027) but nothing ever read it --
+ * isCategoryEnabled above only ever checked `.push`, and used that single
+ * check to gate BOTH the in-app row and (now) the actual push send, since
+ * "push" is genuinely what that preference key means. Email needs its own
+ * check since a user may want one channel without the other.
+ */
+async function isEmailChannelEnabled(
+  userId: string,
+  preferenceKey: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("user_preferences")
+    .select("notification_preferences")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!data) return true;
+  const prefs = data.notification_preferences as Record<
+    string,
+    { email?: boolean }
+  >;
+  return prefs?.[preferenceKey]?.email !== false;
 }
 
 /**
@@ -149,6 +227,25 @@ export async function processUnhandledEvents(
           payload: event.payload,
         });
         notified += 1;
+
+        // Phase 4: push_tokens/email_queue were fully inert before this --
+        // every notification only ever reached the in-app feed. Both are
+        // best-effort/fire-and-isolate internally (see delivery.ts) and
+        // must never affect the domain_events processing loop's own
+        // success/idempotency, so their own errors are swallowed there,
+        // not here.
+        await sendPushNotification(
+          userId,
+          event.event_type,
+          event.payload as Record<string, unknown>,
+        );
+        if (await isEmailChannelEnabled(userId, rule.preferenceKey)) {
+          await enqueueEmailNotification(
+            userId,
+            event.event_type,
+            event.payload as Record<string, unknown>,
+          );
+        }
       }
     } catch (err) {
       logger.error("Failed to process domain event into notifications", {
