@@ -17,6 +17,7 @@ export async function updatePresence(
   userId: string,
   status: PresenceStatus,
   currentChallengeId: string | null,
+  currentTournamentId: string | null = null,
 ): Promise<void> {
   const supabase = getServiceRoleClient();
   await supabase.from("user_presence").upsert(
@@ -25,6 +26,7 @@ export async function updatePresence(
       status,
       last_seen_at: new Date().toISOString(),
       current_challenge_id: currentChallengeId,
+      current_tournament_id: currentTournamentId,
     },
     { onConflict: "user_id" },
   );

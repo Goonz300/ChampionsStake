@@ -13,6 +13,7 @@ import { updatePresence } from "../_realtime/presence.ts";
 const bodySchema = z.object({
   status: z.enum(["online", "offline", "away", "in_match", "ready"]),
   currentChallengeId: z.string().uuid().nullable().optional(),
+  currentTournamentId: z.string().uuid().nullable().optional(),
 });
 
 async function handler(ctx: EdgeContext): Promise<Response> {
@@ -23,6 +24,7 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     ctx.user!.id,
     body.status,
     body.currentChallengeId ?? null,
+    body.currentTournamentId ?? null,
   );
   return successResponse({ updated: true });
 }
