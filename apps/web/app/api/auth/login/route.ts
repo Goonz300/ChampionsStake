@@ -4,6 +4,7 @@ import { loginSchema } from "@/lib/auth/validation";
 import { isLoginRateLimited, recordFailedLogin } from "@/lib/auth/rate-limit";
 import { deriveDeviceFingerprint, recordDevice } from "@/lib/auth/device";
 import { recordSession } from "@/lib/auth/session-registry";
+import { notifySecurityEvent } from "@/lib/auth/security-notifications";
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -83,6 +84,26 @@ export async function POST(request: NextRequest) {
     ),
     deviceId,
   );
+
+  // Phase 3C, Milestone 4: if this account has a verified MFA factor,
+  // password verification alone does not complete login. The session
+  // cookie is already set at this point (a side effect of
+  // signInWithPassword on the cookie-writing client) at GoTrue's own
+  // aal1 -- returning mfa_required tells the client not to treat login as
+  // finished until it calls mfa/verify or recovery-codes/verify, both of
+  // which fire the NewLogin notification themselves once login actually
+  // completes. This route deliberately does not fire NewLogin in the
+  // mfa_required branch below, since login hasn't finished yet.
+  const { data: factorsData } = await supabase.auth.mfa.listFactors();
+  const verifiedFactor = factorsData?.totp.find((f) => f.status === "verified");
+
+  if (verifiedFactor) {
+    return NextResponse.json({
+      data: { mfa_required: true, factor_id: verifiedFactor.id },
+    });
+  }
+
+  await notifySecurityEvent(data.user.id, "NewLogin", { ip_address: ipAddress });
 
   return NextResponse.json({
     data: {

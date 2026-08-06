@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { notifySecurityEvent } from "@/lib/auth/security-notifications";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
@@ -86,6 +87,12 @@ export async function recordDevice(
   } catch (err) {
     console.error("Failed to log NewDeviceLogin (non-fatal):", err);
   }
+
+  // Phase 3C, Milestone 5: "device change" notification, extending this
+  // phase's own NewDeviceLogin audit hook rather than introducing a
+  // second, parallel detection mechanism. notifySecurityEvent has its own
+  // internal fire-and-isolate handling.
+  await notifySecurityEvent(userId, "DeviceChange", { device_id: inserted.id });
 
   return { deviceId: inserted.id, isNewDevice: true };
 }

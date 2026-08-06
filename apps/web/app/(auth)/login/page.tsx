@@ -68,6 +68,36 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase 3C independent-review finding: this page previously ignored
+  // `mfa_required` entirely and treated ANY non-error /api/auth/login
+  // response as a completed login -- for an MFA-enrolled account there was
+  // no way to actually finish signing in through the UI at all, and
+  // (before middleware.ts's matching fix) nothing stopped a plain password
+  // from reaching protected pages regardless. `mfaFactorId` non-null means
+  // the credentials were correct but a second factor is still required.
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+
+  async function finishLogin(tokens: { access_token: string; refresh_token: string }) {
+    // The route handler already set the session cookies server-side; sync
+    // the browser client's in-memory state too so useAuth() updates
+    // immediately without waiting for the next full page load.
+    const supabase = createClient();
+    await supabase.auth.setSession(tokens);
+
+    // Cast to router.push's OWN declared parameter type (derived via
+    // Parameters<>, not the public `Route` type) — verified via a
+    // standalone tsc harness that `Route` (unparameterized, as exported
+    // by `next`) can collapse to plain `string` and fail to satisfy the
+    // router's real constraint, while deriving the target type directly
+    // from the function itself cannot mismatch, whatever that
+    // constraint's exact shape turns out to be. See
+    // lib/auth/safe-redirect.ts for the full reasoning and verification.
+    router.push(redirectTo as Parameters<typeof router.push>[0]);
+    router.refresh();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -86,30 +116,88 @@ function LoginForm() {
         return;
       }
 
-      // The route handler already set the session cookies server-side; sync
-      // the browser client's in-memory state too so useAuth() updates
-      // immediately without waiting for the next full page load.
-      const supabase = createClient();
-      await supabase.auth.setSession({
+      if (json.data.mfa_required) {
+        setMfaFactorId(json.data.factor_id);
+        return;
+      }
+
+      await finishLogin({
         access_token: json.data.access_token,
         refresh_token: json.data.refresh_token,
       });
-
-      // Cast to router.push's OWN declared parameter type (derived via
-      // Parameters<>, not the public `Route` type) — verified via a
-      // standalone tsc harness that `Route` (unparameterized, as exported
-      // by `next`) can collapse to plain `string` and fail to satisfy the
-      // router's real constraint, while deriving the target type directly
-      // from the function itself cannot mismatch, whatever that
-      // constraint's exact shape turns out to be. See
-      // lib/auth/safe-redirect.ts for the full reasoning and verification.
-      router.push(redirectTo as Parameters<typeof router.push>[0]);
-      router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = useRecoveryCode
+        ? await fetch("/api/auth/mfa/recovery-codes/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: mfaCode }),
+          })
+        : await fetch("/api/auth/mfa/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ factorId: mfaFactorId, code: mfaCode, context: "login" }),
+          });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setError(json.error?.message ?? "Invalid code. Please try again.");
+        return;
+      }
+
+      await finishLogin({
+        access_token: json.data.access_token,
+        refresh_token: json.data.refresh_token,
+      });
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (mfaFactorId) {
+    return (
+      <AuthCard title="Verify your identity" subtitle="Enter the code from your authenticator app.">
+        {error && <FormBanner kind="error" message={error} />}
+        <form onSubmit={handleMfaSubmit} noValidate>
+          <FormField
+            label={useRecoveryCode ? "Recovery code" : "6-digit code"}
+            id="mfa-code"
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value)}
+            autoComplete="one-time-code"
+            required
+            autoFocus
+          />
+          <SubmitButton loading={loading}>Verify</SubmitButton>
+        </form>
+        <p className="font-exo text-vv-text-secondary mt-4 text-center text-sm">
+          <button
+            type="button"
+            className="text-vv-neon-green"
+            onClick={() => {
+              setUseRecoveryCode((v) => !v);
+              setMfaCode("");
+              setError(null);
+            }}
+          >
+            {useRecoveryCode ? "Use your authenticator app instead" : "Use a recovery code instead"}
+          </button>
+        </p>
+      </AuthCard>
+    );
   }
 
   return (
