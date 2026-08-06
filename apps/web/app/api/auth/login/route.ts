@@ -7,6 +7,7 @@ import { recordSession } from "@/lib/auth/session-registry";
 import { notifySecurityEvent } from "@/lib/auth/security-notifications";
 import { getClientIp } from "@/lib/security/client-ip";
 import { delay, getProgressiveDelayMs } from "@/lib/security/progressive-delay";
+import { isAccountLocked, recordLockout, shouldLock } from "@/lib/auth/lockout";
 
 /**
  * POST /api/auth/login
@@ -38,10 +39,31 @@ export async function POST(request: NextRequest) {
   // is a known, documented simplification for this phase rather than a
   // silently-dropped requirement — see the AUTH-001 deliverable doc.
 
+  // Layer 8: checked before anything else -- a locked identity is rejected
+  // outright rather than merely delayed/rate-limited. Automatic unlock is
+  // just locked_until elapsing (see lockout.ts).
+  const lockout = await isAccountLocked(email, ipAddress);
+  if (lockout.locked) {
+    const retryAfterSeconds = lockout.lockedUntil
+      ? Math.max(1, Math.ceil((new Date(lockout.lockedUntil).getTime() - Date.now()) / 1000))
+      : 900;
+    return NextResponse.json(
+      {
+        error: {
+          code: "ACCOUNT_LOCKED",
+          message: "This account is temporarily locked due to repeated failed attempts.",
+        },
+      },
+      { status: 423, headers: { "Retry-After": String(retryAfterSeconds) } },
+    );
+  }
+
+  const priorFailureCount = await getLoginFailureCount(email, ipAddress);
+
   // Layer 7: a speed bump ahead of the hard limit below -- each recent
   // failure for this email+IP adds latency before this attempt is even
   // evaluated, independent of whether the hard limit has been reached yet.
-  await delay(getProgressiveDelayMs(await getLoginFailureCount(email, ipAddress)));
+  await delay(getProgressiveDelayMs(priorFailureCount));
 
   if (await isLoginRateLimited(email, ipAddress)) {
     return NextResponse.json(
@@ -60,6 +82,12 @@ export async function POST(request: NextRequest) {
 
   if (error || !data.session || !data.user) {
     await recordFailedLogin(email, ipAddress);
+    // Layer 8: the failure that just landed brings the count to
+    // priorFailureCount + 1 -- lock once that crosses the configured
+    // threshold, rather than re-querying for a count we can compute.
+    if (shouldLock(priorFailureCount + 1)) {
+      await recordLockout(email, ipAddress);
+    }
     return NextResponse.json(
       { error: { code: "AUTH_INVALID_CREDENTIALS", message: "Invalid email or password." } },
       { status: 401 },
