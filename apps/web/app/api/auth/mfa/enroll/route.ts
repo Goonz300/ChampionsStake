@@ -1,17 +1,32 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkAal2Required } from "@/lib/auth/mfa-enforcement";
 
 /**
  * POST /api/auth/mfa/enroll
  *
- * SCOPE NOTE: this wires up Supabase Auth's native TOTP MFA support so the
- * mechanism exists, per this phase's Step 10 ("prepare architecture for
- * MFA... do not require MFA unless defined by the approved business
- * rules"). Business Rules §2 ties MFA *enforcement* to the withdrawal
- * threshold, which doesn't exist until the Wallet engine (Roadmap Phase 6,
- * AUTH-006) is built — so nothing in this phase calls or requires this
- * endpoint. It's here so Phase 6 can enforce it without also having to
- * build the enrollment plumbing at that point.
+ * Wires up Supabase Auth's native TOTP MFA support. Originally built as
+ * unused plumbing ahead of enforcement (AUTH-001); Phase 3C now actually
+ * calls this from the Security Settings "Enable MFA" flow
+ * (components/settings/MfaSection.tsx), which then confirms the
+ * enrollment via mfa/verify.
+ *
+ * Not rate-limited, unlike mfa/verify/recovery-codes/verify: this endpoint
+ * has no brute-forceable secret to guess (it only generates a fresh QR
+ * code/secret for an already-authenticated caller).
+ *
+ * Gated behind checkAal2Required (Phase 3C independent-review finding):
+ * for a FIRST-time enroller this is a no-op (satisfied:true, unaffected).
+ * But for an account that already has a verified factor, an attacker
+ * holding only a hijacked aal1 session (e.g. a stolen cookie, who never
+ * completed the real TOTP step) could otherwise call this endpoint, add
+ * their own attacker-controlled factor, confirm it via mfa/verify, and
+ * have that route's "first enrollment" branch hand them a freshly
+ * regenerated set of recovery codes -- silently invalidating the real
+ * owner's codes and planting a live backdoor, without ever possessing the
+ * victim's actual authenticator. Requiring aal2 here closes that: adding a
+ * factor to an already-MFA-protected account is itself a sensitive action,
+ * same as disabling MFA or regenerating codes.
  */
 export async function POST() {
   const supabase = await createClient();
@@ -24,6 +39,27 @@ export async function POST() {
     return NextResponse.json(
       { error: { code: "AUTH_INVALID_CREDENTIALS", message: "Not authenticated." } },
       { status: 401 },
+    );
+  }
+
+  const { satisfied, hasMfaEnrolled, error: aal2Error } = await checkAal2Required(supabase);
+
+  if (aal2Error) {
+    return NextResponse.json(
+      { error: { code: "INTERNAL_ERROR", message: "Could not verify session security level." } },
+      { status: 500 },
+    );
+  }
+
+  if (hasMfaEnrolled && !satisfied) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "AUTH_MFA_REQUIRED",
+          message: "Re-verify your existing authenticator before adding a new one.",
+        },
+      },
+      { status: 403 },
     );
   }
 
