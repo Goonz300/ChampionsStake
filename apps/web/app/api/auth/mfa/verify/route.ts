@@ -1,10 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { isMfaVerifyRateLimited, recordFailedMfaVerify } from "@/lib/auth/rate-limit";
+import {
+  getMfaVerifyFailureCount,
+  isMfaVerifyRateLimited,
+  recordFailedMfaVerify,
+} from "@/lib/auth/rate-limit";
 import { regenerateRecoveryCodes } from "@/lib/auth/recovery-codes";
 import { logSecurityEvent } from "@/lib/auth/audit";
 import { notifySecurityEvent } from "@/lib/auth/security-notifications";
+import { delay, getProgressiveDelayMs } from "@/lib/security/progressive-delay";
 
 const mfaVerifySchema = z.object({
   factorId: z.string().min(1),
@@ -57,6 +62,9 @@ export async function POST(request: NextRequest) {
       { status: 401 },
     );
   }
+
+  // Layer 7: speed bump ahead of the hard (fail-closed) limit below.
+  await delay(getProgressiveDelayMs(await getMfaVerifyFailureCount(factorId)));
 
   if (await isMfaVerifyRateLimited(factorId)) {
     return NextResponse.json(

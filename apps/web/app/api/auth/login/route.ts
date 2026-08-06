@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/auth/validation";
-import { isLoginRateLimited, recordFailedLogin } from "@/lib/auth/rate-limit";
+import { getLoginFailureCount, isLoginRateLimited, recordFailedLogin } from "@/lib/auth/rate-limit";
 import { deriveDeviceFingerprint, recordDevice } from "@/lib/auth/device";
 import { recordSession } from "@/lib/auth/session-registry";
 import { notifySecurityEvent } from "@/lib/auth/security-notifications";
 import { getClientIp } from "@/lib/security/client-ip";
+import { delay, getProgressiveDelayMs } from "@/lib/security/progressive-delay";
 
 /**
  * POST /api/auth/login
@@ -36,6 +37,11 @@ export async function POST(request: NextRequest) {
   // write time, which @supabase/ssr's helper does not expose per-call. This
   // is a known, documented simplification for this phase rather than a
   // silently-dropped requirement — see the AUTH-001 deliverable doc.
+
+  // Layer 7: a speed bump ahead of the hard limit below -- each recent
+  // failure for this email+IP adds latency before this attempt is even
+  // evaluated, independent of whether the hard limit has been reached yet.
+  await delay(getProgressiveDelayMs(await getLoginFailureCount(email, ipAddress)));
 
   if (await isLoginRateLimited(email, ipAddress)) {
     return NextResponse.json(
