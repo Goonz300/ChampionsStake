@@ -11,6 +11,7 @@ vi.mock("@/lib/authorization/edge-function-proxy", () => ({
 }));
 
 import { NextResponse } from "next/server";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { requireRoleForRoute } from "@/lib/authorization/require-role";
 import { invokeEdgeFunctionAsUser } from "@/lib/authorization/edge-function-proxy";
 import { GET, POST } from "./route";
@@ -58,6 +59,32 @@ describe("GET /api/admin/wallets", () => {
 
     expect(response.status).toBe(400);
     expect(invokeEdgeFunctionAsUser).not.toHaveBeenCalled();
+  });
+
+  it("forwards the Edge Function's real error status/body for the csv statement path, not a generic 502 (independent-review fix)", async () => {
+    vi.mocked(requireRoleForRoute).mockResolvedValue(fakeCaller);
+    const errorBody = { error: { code: "NOT_FOUND", message: "No wallet found for that user." } };
+    const fakeResponse = {
+      status: 404,
+      json: vi.fn().mockResolvedValue(errorBody),
+    } as unknown as Response;
+    const invokeMock = (
+      fakeCaller.supabase as unknown as { functions: { invoke: ReturnType<typeof vi.fn> } }
+    ).functions.invoke;
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: new FunctionsHttpError(fakeResponse),
+    });
+
+    const response = await GET(
+      new NextRequest(
+        `https://example.com/api/admin/wallets?userId=${uuid}&view=statement&format=csv&from=2026-01-01T00:00:00Z&to=2026-01-31T00:00:00Z`,
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body).toEqual(errorBody);
   });
 
   it("forwards a valid balance query and unwraps the response", async () => {

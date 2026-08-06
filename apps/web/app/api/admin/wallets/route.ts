@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireRoleForRoute, isAuthError } from "@/lib/authorization/require-role";
 import { invokeEdgeFunctionAsUser, isErrorResponse } from "@/lib/authorization/edge-function-proxy";
@@ -73,6 +74,18 @@ export async function GET(request: NextRequest) {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (error) {
+      // Forward the Edge Function's real status/body (e.g. a 404 for an
+      // unknown wallet), same as invokeEdgeFunctionAsUser does for every
+      // other route -- this branch bypasses that helper only because a
+      // csv response isn't the standard {data:...} JSON envelope, not
+      // because its errors deserve different treatment.
+      if (error instanceof FunctionsHttpError) {
+        const body = await error.context.json().catch(() => null);
+        return NextResponse.json(
+          body ?? { error: { code: "INTERNAL_ERROR", message: "Failed to generate statement." } },
+          { status: error.context.status },
+        );
+      }
       return NextResponse.json(
         { error: { code: "INTERNAL_ERROR", message: "Failed to generate statement." } },
         { status: 502 },
