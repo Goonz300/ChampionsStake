@@ -25,23 +25,35 @@ import { getRealtimeClient } from "./client";
  * LATEST configure logic (closing over current props/state setters) still
  * runs on every real (re)subscription.
  */
+export interface UseRealtimeChannelOptions {
+  /** Set true for any channel that uses Broadcast or Presence (not just
+   * Postgres Changes) -- required for migration 0078's realtime.messages
+   * RLS policies to actually be consulted at all. Postgres-Changes-only
+   * channels (the majority of this app's hooks) don't need this: that
+   * transport is always governed by the underlying table's own RLS,
+   * private or not. */
+  private?: boolean;
+}
+
 export function useRealtimeChannel(
   channelName: string | null | undefined,
   configure: (channel: RealtimeChannel) => void,
+  options: UseRealtimeChannelOptions = {},
 ): void {
   const configureRef = useRef(configure);
   configureRef.current = configure;
+  const isPrivate = options.private ?? false;
 
   useEffect(() => {
     if (!channelName) return;
 
     const supabase = getRealtimeClient();
-    const channel = supabase.channel(channelName);
+    const channel = supabase.channel(channelName, { config: { private: isPrivate } });
     configureRef.current(channel);
     channel.subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [channelName]);
+  }, [channelName, isPrivate]);
 }

@@ -116,10 +116,28 @@ export async function processEmailQueue(
       }
     }
 
-    await supabase.from("email_queue").update({ status: "processing" }).eq(
-      "id",
-      row.id,
-    );
+    // Phase 4 independent-review finding: overlapping cron invocations
+    // (the job runs long enough to still be mid-batch when the next
+    // minute's trigger fires) could otherwise both select the same
+    // 'queued'/'failed' row and send it twice. This is the same atomic
+    // UPDATE ... WHERE ... RETURNING claim pattern already established in
+    // this codebase (recovery-codes.ts's consumeRecoveryCode, Phase 3C) --
+    // only the invocation that actually flips the row to 'processing'
+    // (guarded by re-checking its status hasn't changed since the SELECT
+    // above) proceeds to send; a second, racing invocation gets back no
+    // row and skips it.
+    const { data: claimed } = await supabase
+      .from("email_queue")
+      .update({ status: "processing" })
+      .eq("id", row.id)
+      .in("status", ["queued", "failed"])
+      .select("id")
+      .maybeSingle();
+
+    if (!claimed) {
+      skipped += 1;
+      continue;
+    }
 
     const result = await sendViaResend(row);
 

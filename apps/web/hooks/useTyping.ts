@@ -34,29 +34,38 @@ export function useTyping(challengeId: string | null | undefined) {
 
   const channelName = challengeId ? `chat:${challengeId}` : null;
 
-  useRealtimeChannel(channelName, (channel) => {
-    channel.on(
-      "broadcast",
-      { event: "typing_started" },
-      ({ payload }: { payload: TypingBroadcastPayload }) => {
-        setTypingUserIds((prev) =>
-          prev.includes(payload.userId) ? prev : [...prev, payload.userId],
-        );
-        clearStaleTimer(payload.userId);
-        staleTimersRef.current.set(
-          payload.userId,
-          setTimeout(() => removeTypingUser(payload.userId), STALE_TIMEOUT_MS),
-        );
-      },
-    );
-    channel.on(
-      "broadcast",
-      { event: "typing_stopped" },
-      ({ payload }: { payload: TypingBroadcastPayload }) => {
-        removeTypingUser(payload.userId);
-      },
-    );
-  });
+  useRealtimeChannel(
+    channelName,
+    (channel) => {
+      channel.on(
+        "broadcast",
+        { event: "typing_started" },
+        ({ payload }: { payload: TypingBroadcastPayload }) => {
+          setTypingUserIds((prev) =>
+            prev.includes(payload.userId) ? prev : [...prev, payload.userId],
+          );
+          clearStaleTimer(payload.userId);
+          staleTimersRef.current.set(
+            payload.userId,
+            setTimeout(() => removeTypingUser(payload.userId), STALE_TIMEOUT_MS),
+          );
+        },
+      );
+      channel.on(
+        "broadcast",
+        { event: "typing_stopped" },
+        ({ payload }: { payload: TypingBroadcastPayload }) => {
+          removeTypingUser(payload.userId);
+        },
+      );
+      // Phase 4 independent-review fix: marks this channel private so
+      // migration 0078's realtime.messages RLS policies (participant-only
+      // broadcast) are actually consulted -- without this, Broadcast has no
+      // backing table for RLS to govern at all, and any authenticated client
+      // could send/receive on this channel regardless of participation.
+    },
+    { private: true },
+  );
 
   // Reconnect cleanup: dropping all locally-tracked typing state on a
   // channel change (challengeId change, or the underlying channel being

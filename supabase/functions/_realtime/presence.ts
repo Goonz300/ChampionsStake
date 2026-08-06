@@ -11,8 +11,38 @@
 // recently" shown on a profile).
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
+import { isParticipant } from "../_challenge/repository.ts";
 import type { PresenceStatus } from "./types.ts";
 
+async function isTournamentRegistrant(
+  tournamentId: string,
+  userId: string,
+): Promise<boolean> {
+  const supabase = getServiceRoleClient();
+  const { count } = await supabase
+    .from("tournament_registrations")
+    .select("id", { count: "exact", head: true })
+    .eq("tournament_id", tournamentId)
+    .eq("user_id", userId);
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Phase 4 independent-review finding: neither currentChallengeId nor (the
+ * newly-added) currentTournamentId was ever verified against the
+ * caller's actual participation -- a caller could claim presence in a
+ * challenge/tournament they have nothing to do with. The practical impact
+ * is narrow (this only affects who can see a self-reported status/
+ * last-seen via user_presence's participant-scoped RLS policies, not
+ * financial/PII data) but it is a real, avoidable authorization gap in a
+ * function this phase already touches, so it's closed here rather than
+ * just noted: an unverified id is silently dropped to null (fails safe --
+ * the write still succeeds, just without that context) rather than
+ * rejecting the whole presence update over a stale/incorrect id, which
+ * would be a worse experience for a legitimate client racing a state
+ * change (e.g. reporting a challenge as "current" the instant before
+ * their own participant row is visible).
+ */
 export async function updatePresence(
   userId: string,
   status: PresenceStatus,
@@ -20,13 +50,23 @@ export async function updatePresence(
   currentTournamentId: string | null = null,
 ): Promise<void> {
   const supabase = getServiceRoleClient();
+
+  const verifiedChallengeId = currentChallengeId &&
+      (await isParticipant(currentChallengeId, userId))
+    ? currentChallengeId
+    : null;
+  const verifiedTournamentId = currentTournamentId &&
+      (await isTournamentRegistrant(currentTournamentId, userId))
+    ? currentTournamentId
+    : null;
+
   await supabase.from("user_presence").upsert(
     {
       user_id: userId,
       status,
       last_seen_at: new Date().toISOString(),
-      current_challenge_id: currentChallengeId,
-      current_tournament_id: currentTournamentId,
+      current_challenge_id: verifiedChallengeId,
+      current_tournament_id: verifiedTournamentId,
     },
     { onConflict: "user_id" },
   );
