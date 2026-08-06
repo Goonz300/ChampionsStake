@@ -2,17 +2,20 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listSessionsForUser, type SessionListItem } from "@/lib/auth/session-registry";
 import { listDevicesForUser } from "@/lib/auth/device";
+import { countUnusedRecoveryCodes } from "@/lib/auth/recovery-codes";
 import { RevokeOthersButton } from "@/components/settings/RevokeOthersButton";
+import { MfaSection } from "@/components/settings/MfaSection";
 
 /**
- * Security Settings — Phase 3 Architecture Rev. 2, §8/§11/§17 (M2). Shows
- * exactly the real, RLS-scoped data this stack actually has: sessions and
- * devices are read-only rows here, not editable ones — `devices` has no
- * client write policy at all (0018), and there is no per-session revoke
- * capability anywhere in this stack (§8), only "sign out everything but
- * this session." No trust toggles, nicknames, per-row remove buttons, or
- * location fields are rendered: none of those are backed by real schema or
- * architecture, and this phase does not invent them (Phase 3B scope note).
+ * Security Settings — Phase 3 Architecture Rev. 2, §8/§11/§17 (M2); MFA
+ * section added Phase 3C, Milestone 6. Shows exactly the real, RLS-scoped
+ * data this stack actually has: sessions and devices are read-only rows
+ * here, not editable ones — `devices` has no client write policy at all
+ * (0018), and there is no per-session revoke capability anywhere in this
+ * stack (§8), only "sign out everything but this session." No trust
+ * toggles, nicknames, per-row remove buttons, or location fields are
+ * rendered: none of those are backed by real schema or architecture, and
+ * this phase does not invent them (Phase 3B scope note, still true here).
  */
 export default async function SecuritySettingsPage() {
   const supabase = await createClient();
@@ -29,10 +32,15 @@ export default async function SecuritySettingsPage() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const [{ data: sessions }, { data: devices }] = await Promise.all([
-    listSessionsForUser(supabase, session?.refresh_token),
-    listDevicesForUser(supabase),
-  ]);
+  const [{ data: sessions }, { data: devices }, { data: factorsData }, { count: codesRemaining }] =
+    await Promise.all([
+      listSessionsForUser(supabase, session?.refresh_token),
+      listDevicesForUser(supabase),
+      supabase.auth.mfa.listFactors(),
+      countUnusedRecoveryCodes(user.id),
+    ]);
+
+  const verifiedFactor = factorsData?.totp.find((f) => f.status === "verified") ?? null;
 
   const now = Date.now();
   const isActive = (s: SessionListItem) =>
@@ -56,6 +64,22 @@ export default async function SecuritySettingsPage() {
             Last login: <span className="text-white">{new Date(lastLogin).toLocaleString()}</span>
           </p>
         ) : null}
+
+        <section aria-labelledby="mfa-heading" className="mt-8">
+          <h2 id="mfa-heading" className="font-orbitron text-lg font-semibold text-white">
+            Two-Factor Authentication
+          </h2>
+          <p className="font-exo text-vv-text-tertiary mt-1 text-xs">
+            Require a code from an authenticator app in addition to your password.
+          </p>
+          <div className="mt-3">
+            <MfaSection
+              initiallyEnrolled={verifiedFactor !== null}
+              initialCodesRemaining={codesRemaining}
+              initialFactorId={verifiedFactor?.id ?? null}
+            />
+          </div>
+        </section>
 
         <section aria-labelledby="active-sessions-heading" className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
