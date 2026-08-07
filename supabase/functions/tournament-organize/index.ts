@@ -31,6 +31,11 @@ import {
   getTournamentQuality,
   getTournamentRevenue,
 } from "../_tournament/analytics.ts";
+import {
+  autoRescheduleIfUnderfilled,
+  checkOrganizerScheduleConflict,
+  getSchedulingAdherence,
+} from "../_tournament/scheduling.ts";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { AuthorizationError } from "../_shared/errors/index.ts";
 
@@ -42,8 +47,13 @@ const getQuerySchema = z.object({
     "drop_off",
     "quality",
     "ecosystem_health",
+    "scheduling_adherence",
+    "schedule_conflict",
   ]).default("dashboard"),
   tournamentId: z.string().uuid().optional(),
+  gameId: z.string().uuid().optional(),
+  registrationOpensAt: z.string().datetime({ offset: true }).optional(),
+  startsAt: z.string().datetime({ offset: true }).optional(),
 });
 
 /** Financial/participation analytics for a specific tournament are
@@ -100,6 +110,10 @@ const postBodySchema = z.discriminatedUnion("action", [
     invitationId: z.string().uuid(),
     accept: z.boolean(),
   }),
+  z.object({
+    action: z.literal("reschedule_if_underfilled"),
+    tournamentId: z.string().uuid(),
+  }),
 ]);
 
 async function handleGet(ctx: EdgeContext): Promise<Response> {
@@ -110,8 +124,25 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
   if (query.view === "ecosystem_health") {
     return successResponse(await getTournamentEcosystemHealth());
   }
+  if (query.view === "scheduling_adherence") {
+    return successResponse(await getSchedulingAdherence());
+  }
   if (query.view === "dashboard") {
     return successResponse(await getOrganizerDashboard(ctx.user!.id));
+  }
+  if (query.view === "schedule_conflict") {
+    if (!query.gameId || !query.registrationOpensAt || !query.startsAt) {
+      throw new ValidationError(
+        "gameId, registrationOpensAt, and startsAt are required for schedule_conflict.",
+      );
+    }
+    const conflict = await checkOrganizerScheduleConflict(
+      ctx.user!.id,
+      query.gameId,
+      { startsAt: query.registrationOpensAt, endsAt: query.startsAt },
+      query.tournamentId,
+    );
+    return successResponse({ hasConflict: conflict !== null, conflict });
   }
 
   if (!query.tournamentId) {
@@ -171,12 +202,18 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
     return successResponse(result, { status: 201 });
   }
 
-  const result = await inviteToTournament(
-    body.tournamentId,
-    userId,
-    body.invitedUserId,
-  );
-  return successResponse(result, { status: 201 });
+  if (body.action === "invite") {
+    const result = await inviteToTournament(
+      body.tournamentId,
+      userId,
+      body.invitedUserId,
+    );
+    return successResponse(result, { status: 201 });
+  }
+
+  await requireTournamentOwnerOrAdmin(ctx, body.tournamentId);
+  const result = await autoRescheduleIfUnderfilled(body.tournamentId);
+  return successResponse(result);
 }
 
 function handler(ctx: EdgeContext): Promise<Response> {

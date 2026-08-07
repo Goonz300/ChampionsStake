@@ -42,6 +42,22 @@ async function tournamentCreatorId(tournamentId: unknown): Promise<string[]> {
   return data ? [data.created_by as string] : [];
 }
 
+/** Phase 8 (TOURNAMENT-010): registered participants, for the reminder
+ * notification -- distinct from tournamentCreatorId above (the organizer
+ * gets their own notifications for lifecycle events; a reminder is for
+ * the people actually playing). */
+async function tournamentParticipantIds(
+  tournamentId: unknown,
+): Promise<string[]> {
+  if (typeof tournamentId !== "string") return [];
+  const { data } = await supabase
+    .from("tournament_registrations")
+    .select("user_id")
+    .eq("tournament_id", tournamentId)
+    .eq("forfeited", false);
+  return (data ?? []).map((r) => r.user_id as string);
+}
+
 /**
  * Phase 4 fix: chat.ts's sendMessage and escrow-transition.ts's
  * acceptChallenge both emit type "NotificationQueued" (a generic "please
@@ -160,6 +176,12 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
       Promise.resolve(
         typeof p.invitedUserId === "string" ? [p.invitedUserId] : [],
       ),
+  },
+  // Phase 8 (TOURNAMENT-010): Tournament Scheduling.
+  TournamentReminderDue: {
+    category: "tournament",
+    preferenceKey: "tournament_updates",
+    resolveRecipients: (p) => tournamentParticipantIds(p.tournamentId),
   },
 };
 

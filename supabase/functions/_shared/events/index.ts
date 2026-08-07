@@ -82,6 +82,8 @@ export type DomainEventType =
   | "SeasonEnded"
   // Phase 8 (TOURNAMENT-007): Organizer Platform events.
   | "TournamentInvitationSent"
+  // Phase 8 (TOURNAMENT-010): Tournament Scheduling events.
+  | "TournamentReminderDue"
   // Framework-level events, actually emitted by this phase's own code:
   | "RateLimitProbe";
 

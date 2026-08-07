@@ -17,6 +17,7 @@ import {
   getMatchTimeline,
   getTournamentActivityLog,
 } from "../_realtime/spectator.ts";
+import { getTournamentIcsFeed } from "../_tournament/scheduling.ts";
 
 const querySchema = z.object({
   view: z.enum([
@@ -26,6 +27,7 @@ const querySchema = z.object({
     "participants",
     "match_timeline",
     "activity",
+    "ics",
   ]).default("list"),
   tournamentId: z.string().uuid().optional(),
   gameId: z.string().uuid().optional(),
@@ -68,6 +70,17 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     throw new ValidationError(
       "tournamentId is required for bracket/standings/participants views.",
     );
+  }
+
+  if (query.view === "ics") {
+    const ics = await getTournamentIcsFeed(query.tournamentId);
+    return new Response(ics, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/calendar; charset=utf-8",
+        "Content-Disposition": "attachment; filename=tournament.ics",
+      },
+    });
   }
 
   if (query.view === "bracket") {
