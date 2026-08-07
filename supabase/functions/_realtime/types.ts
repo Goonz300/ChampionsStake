@@ -24,7 +24,8 @@ export type NotificationCategory =
   | "security"
   | "friends"
   | "platform"
-  | "announcements";
+  | "announcements"
+  | "team";
 
 export type PresenceStatus =
   | "online"

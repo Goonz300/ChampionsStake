@@ -75,6 +75,9 @@ export type DomainEventType =
   | "TournamentNoShowRecorded"
   | "ChargebackRecorded"
   | "SanctionsScreeningBlocked"
+  // Phase 8 (TOURNAMENT-003): Team Platform events.
+  | "TeamInvitationSent"
+  | "TeamOwnershipTransferred"
   // Framework-level events, actually emitted by this phase's own code:
   | "RateLimitProbe";
 

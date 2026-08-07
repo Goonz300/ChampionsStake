@@ -21,7 +21,10 @@ export type AuditCategory =
   | "dispute"
   | "moderation"
   | "admin"
-  | "system";
+  | "system"
+  // Phase 8 (TOURNAMENT-003): matches audit_action_category's additive
+  // 'team' enum value (migration 0094).
+  | "team";
 
 export interface AuditEntryInput {
   actorId: string | null;

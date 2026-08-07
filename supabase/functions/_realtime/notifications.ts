@@ -135,6 +135,23 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
     preferenceKey: "chat_messages",
     resolveRecipients: (p) => chatNotificationRecipients(p),
   },
+  // Phase 8 (TOURNAMENT-003): Team Platform.
+  TeamInvitationSent: {
+    category: "team",
+    preferenceKey: "social_updates",
+    resolveRecipients: (p) =>
+      Promise.resolve(
+        typeof p.invitedUserId === "string" ? [p.invitedUserId] : [],
+      ),
+  },
+  TeamOwnershipTransferred: {
+    category: "team",
+    preferenceKey: "social_updates",
+    resolveRecipients: (p) =>
+      Promise.resolve(
+        typeof p.newOwnerId === "string" ? [p.newOwnerId] : [],
+      ),
+  },
 };
 
 async function isCategoryEnabled(
