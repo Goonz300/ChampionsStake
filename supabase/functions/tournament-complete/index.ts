@@ -1,6 +1,8 @@
 // supabase/functions/tournament-complete/index.ts
-// Triggers prize distribution (event only — never moves money directly,
-// per this phase's explicit instruction) and marks the tournament completed.
+// Triggers prize distribution -- releases every registrant's locked entry
+// fee and credits the placement winners in one balanced ledger transaction
+// (Phase 6 fix; see triggerPrizeDistribution's own doc comment) -- and
+// marks the tournament completed.
 
 import { z } from "zod";
 import {
@@ -17,8 +19,10 @@ const bodySchema = z.object({ tournamentId: z.string().uuid() });
 async function handler(ctx: EdgeContext): Promise<Response> {
   requireAdministrator(ctx.profile!);
   const body = validateBody(bodySchema, await parseJsonBody(ctx.request));
-  await triggerPrizeDistribution(body.tournamentId);
-  return successResponse({ completed: true });
+  const { totalDistributedCents } = await triggerPrizeDistribution(
+    body.tournamentId,
+  );
+  return successResponse({ completed: true, totalDistributedCents });
 }
 
 Deno.serve(

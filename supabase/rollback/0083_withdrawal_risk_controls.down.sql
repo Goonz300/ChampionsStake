@@ -1,0 +1,6 @@
+-- Rollback 0083: Withdrawal Risk Controls
+-- Note: payment_intent_status's new 'pending_review' enum value cannot be
+-- dropped by PostgreSQL once added -- any payment_intents rows using it
+-- would need to be reassigned or deleted first, and even then the value
+-- itself is permanent. Left in place on rollback, matching every other
+-- enum extension in this schema (e.g. 0015, 0035, 0080).

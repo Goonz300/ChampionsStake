@@ -45,6 +45,15 @@ export type DomainEventType =
   | "ChallengeExpired"
   | "ChallengeArchived"
   | "AnnouncementPublished"
+  // Phase 6 event-contract fix: matching the exact Phase 4 fix above for
+  // challenge events -- triggerPrizeDistribution previously emitted
+  // type:"TournamentStarted" for both of these, with the real event name
+  // only in payload.event, so no type-dispatching consumer could ever
+  // actually subscribe to "a tournament's prizes were distributed" or "a
+  // tournament completed."
+  | "TournamentPrizeDistributionTriggered"
+  | "TournamentPrizesDistributed"
+  | "TournamentCompleted"
   // Wallet Engine events (WALLET-001):
   | "WalletCreated"
   | "WalletUpdated"

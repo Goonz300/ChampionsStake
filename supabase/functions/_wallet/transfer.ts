@@ -13,6 +13,7 @@ import { postBalancedEntries } from "./ledger.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { WalletError } from "../_shared/errors/index.ts";
+import { recordEscrowLock, recordEscrowRelease } from "./escrow-accounts.ts";
 import type {
   LedgerLeg,
   RelatedEntityRef,
@@ -109,15 +110,20 @@ export function walletToWallet(
  * `escrowed` sub-balance. This is the low-level primitive the Challenge
  * Engine's "publish"/"accept" actions will call — this function has no
  * opinion about challenges, stakes, or when locking should happen.
+ *
+ * Also records the lock against escrow_accounts/escrow_transactions
+ * (Phase 6 fix — see escrow-accounts.ts's header comment) since this is the
+ * one choke point every escrow lock, for both challenges and tournaments,
+ * already passes through.
  */
-export function lockToEscrow(
+export async function lockToEscrow(
   walletId: string,
   amountCents: number,
   relatedEntity: RelatedEntityRef,
   initiatedBy: string | null,
   idempotencyKey?: string,
 ): Promise<TransferResult> {
-  return execute(
+  const result = await execute(
     [
       { walletId, accountType: "available", direction: "debit", amountCents },
       { walletId, accountType: "escrowed", direction: "credit", amountCents },
@@ -128,6 +134,15 @@ export function lockToEscrow(
     relatedEntity,
     idempotencyKey,
   );
+
+  await recordEscrowLock(
+    relatedEntity,
+    result.transactionId,
+    amountCents,
+    initiatedBy,
+  );
+
+  return result;
 }
 
 /**
@@ -190,6 +205,16 @@ export async function releaseFromEscrow(
     releaseReason,
     idempotencyKey,
   });
+
+  // Phase 6 fix — see escrow-accounts.ts's header comment.
+  await recordEscrowRelease(
+    relatedEntity,
+    result.transactionId,
+    amountCents,
+    initiatedBy,
+    releaseReason,
+    toWalletId,
+  );
 
   await recordAudit({
     actorId: initiatedBy,

@@ -1,6 +1,6 @@
 // Run with: deno test supabase/functions/_shared/auth/jwt.test.ts
 import { assertEquals, assertThrows } from "@std/assert";
-import { decodeJwtIat } from "./jwt.ts";
+import { decodeJwtAal, decodeJwtIat } from "./jwt.ts";
 import { AuthenticationError } from "../errors/index.ts";
 
 function makeJwt(payload: Record<string, unknown>): string {
@@ -57,6 +57,28 @@ Deno.test("decodeJwtIat throws AuthenticationError when iat is not a number", ()
   const jwt = makeJwt({ iat: "not-a-number" });
   assertThrows(
     () => decodeJwtIat(jwt),
+    AuthenticationError,
+  );
+});
+
+Deno.test("decodeJwtAal extracts the aal claim from a well-formed JWT", () => {
+  const jwt = makeJwt({ sub: "user-1", aal: "aal2" });
+  assertEquals(decodeJwtAal(jwt), "aal2");
+});
+
+Deno.test("decodeJwtAal defaults to aal1 when the claim is absent (older/non-MFA session)", () => {
+  const jwt = makeJwt({ sub: "user-1" });
+  assertEquals(decodeJwtAal(jwt), "aal1");
+});
+
+Deno.test("decodeJwtAal defaults to aal1 when the claim is present but not a string", () => {
+  const jwt = makeJwt({ sub: "user-1", aal: 2 });
+  assertEquals(decodeJwtAal(jwt), "aal1");
+});
+
+Deno.test("decodeJwtAal throws AuthenticationError for a token with the wrong segment count", () => {
+  assertThrows(
+    () => decodeJwtAal("only-one-segment"),
     AuthenticationError,
   );
 });

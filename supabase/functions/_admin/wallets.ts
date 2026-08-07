@@ -17,10 +17,43 @@ import {
   listTransactions,
 } from "../_wallet/repository.ts";
 import { generateStatement, statementToCsv } from "../_wallet/statements.ts";
+import {
+  approveHeldWithdrawal,
+  rejectHeldWithdrawal,
+} from "../_payment/withdrawal-service.ts";
+import {
+  addToSanctionsBlocklist,
+  listSanctionsBlocklist,
+  removeFromSanctionsBlocklist,
+} from "../_payment/sanctions.ts";
 
 export const adminGetBalance = getBalance;
 export const adminFreezeWallet = freezeWallet;
 export const adminUnfreezeWallet = unfreezeWallet;
+export const adminApproveWithdrawal = approveHeldWithdrawal;
+export const adminRejectWithdrawal = rejectHeldWithdrawal;
+export const adminAddSanctionsBlocklistEntry = addToSanctionsBlocklist;
+export const adminRemoveSanctionsBlocklistEntry = removeFromSanctionsBlocklist;
+export const adminListSanctionsBlocklist = listSanctionsBlocklist;
+
+/** Phase 6: withdrawals held for manual review (Layer "high-value
+ * withdrawal" risk control) -- the admin queue this feeds. */
+export async function adminListPendingReviewWithdrawals(limit = 50) {
+  const supabase = getServiceRoleClient();
+  const { data, error } = await supabase
+    .from("payment_intents")
+    .select("id, user_id, amount_cents, created_at, payout_method_id")
+    .eq("kind", "withdrawal")
+    .eq("status", "pending_review")
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    throw new Error(
+      `Failed to list pending-review withdrawals: ${error.message}`,
+    );
+  }
+  return data ?? [];
+}
 
 export async function adminGetTransactions(
   userId: string,

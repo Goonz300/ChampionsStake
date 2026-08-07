@@ -9,6 +9,8 @@ import {
 } from "../auth/roles.ts";
 import type { UserProfile } from "../auth/session.ts";
 import { assertAccountActive } from "../auth/session.ts";
+import type { AuthenticatedUser } from "../auth/jwt.ts";
+import { getUserScopedClient } from "../database/client.ts";
 
 /**
  * Each function below both checks a condition AND asserts the account is
@@ -54,6 +56,42 @@ export function requireSupportStaff(profile: UserProfile): void {
   if (!isSupportStaff(profile)) {
     throw new AuthorizationError(
       "This action requires support or administrator privileges.",
+    );
+  }
+}
+
+/**
+ * Session-assurance check, distinct from the role/profile checks above --
+ * takes the AuthenticatedUser (the JWT-derived object), not a UserProfile,
+ * since AAL is a property of the SESSION, not the account. Phase 6:
+ * withdrawal-service.ts had no MFA/AAL2 enforcement anywhere in the Edge
+ * Function layer (verified by grep before adding this) -- MFA enrollment/
+ * verification has existed since Phase 3C, but every check of it lived
+ * entirely in apps/web's own routes, never reaching the money-moving Edge
+ * Functions a stolen aal1-only session token could otherwise call directly.
+ *
+ * Only enforces aal2 if the account actually HAS a verified MFA factor —
+ * MFA is opt-in (Phase 3C), so unconditionally requiring aal2 would lock
+ * every non-MFA account out of withdrawing entirely, which is not this
+ * account's own security posture to force. Reuses the exact same
+ * `supabase.auth.mfa.listFactors()` call (on a client scoped to the
+ * caller's own JWT, via getUserScopedClient — not the service-role client,
+ * matching apps/web/app/api/auth/login/route.ts's identical, already-proven
+ * pattern for the same check) that already gates this in the web app, so
+ * there is exactly one way this codebase determines "is MFA enrolled,"
+ * not a second, parallel one.
+ */
+export async function requireAal2IfMfaEnrolled(
+  user: AuthenticatedUser,
+): Promise<void> {
+  const supabase = getUserScopedClient(user.jwt);
+  const { data } = await supabase.auth.mfa.listFactors();
+  const hasVerifiedFactor = data?.totp.some((f) => f.status === "verified") ??
+    false;
+
+  if (hasVerifiedFactor && user.aal !== "aal2") {
+    throw new AuthorizationError(
+      "This account has multi-factor authentication enabled — please re-verify before withdrawing.",
     );
   }
 }
