@@ -125,6 +125,16 @@ export async function spawnFromTemplate(
     .update({ payout_structure: template.payout_structure })
     .eq("id", result.id);
 
+  await recordAudit({
+    actorId,
+    actorType: "user",
+    action: "TournamentSpawnedFromTemplate",
+    category: "tournament",
+    targetTable: "tournaments",
+    targetId: result.id,
+    metadata: { templateId, payoutStructure: template.payout_structure },
+  });
+
   return result;
 }
 
@@ -164,6 +174,16 @@ export async function inviteToTournament(
     }
     throw new Error(`Failed to create invitation: ${error.message}`);
   }
+
+  await recordAudit({
+    actorId: inviterId,
+    actorType: "user",
+    action: "TournamentInvitationSent",
+    category: "tournament",
+    targetTable: "tournament_invitations",
+    targetId: data.id,
+    metadata: { tournamentId, invitedUserId },
+  });
 
   await emit({
     type: "TournamentInvitationSent",

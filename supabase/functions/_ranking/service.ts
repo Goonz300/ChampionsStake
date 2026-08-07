@@ -114,6 +114,20 @@ function applyDecayIfNeeded(rating: PlayerRatingRow): number {
   return computeRatingDecay(rating.glickoRd, daysSince);
 }
 
+async function ratingAlreadyProcessed(
+  playerRatingId: string,
+  challengeId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("rating_history")
+    .select("id")
+    .eq("player_rating_id", playerRatingId)
+    .eq("challenge_id", challengeId)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 async function updateRatingForResult(
   userId: string,
   gameId: string,
@@ -127,6 +141,13 @@ async function updateRatingForResult(
     getOrCreateRating(userId, gameId, scopeType, scopeId),
     getOrCreateRating(opponentUserId, gameId, scopeType, scopeId),
   ]);
+
+  // Idempotency is checked per (player_rating_id, challenge_id), i.e. per
+  // scope -- a sweep retry after a partial failure (e.g. the global-scope
+  // update succeeded but a tournament-scope update below it threw) must
+  // still be able to apply whichever scope's update is actually missing,
+  // not skip the whole challenge because *a* rating_history row exists.
+  if (await ratingAlreadyProcessed(playerRating.id, challengeId)) return;
 
   const decayedRd = applyDecayIfNeeded(playerRating);
   const player: GlickoPlayer = { rating: playerRating.rating, rd: decayedRd };
@@ -165,25 +186,11 @@ async function updateRatingForResult(
   });
 }
 
-async function alreadyProcessed(
-  challengeId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from("rating_history")
-    .select("id")
-    .eq("challenge_id", challengeId)
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-  return Boolean(data);
-}
-
 async function applyChallengeResult(challengeId: string): Promise<void> {
   const { data: challenge } = await supabase
     .from("challenges")
     .select(
-      "game_id, creator_id, opponent_id, winner_submitted_by, release_reason",
+      "game_id, creator_id, opponent_id, winner_submitted_by, release_reason, tournament_id",
     )
     .eq("id", challengeId)
     .maybeSingle();
@@ -197,23 +204,52 @@ async function applyChallengeResult(challengeId: string): Promise<void> {
   const loserId = winnerId === challenge.creator_id
     ? challenge.opponent_id as string
     : challenge.creator_id as string;
+  const gameId = challenge.game_id as string;
 
-  if (await alreadyProcessed(challengeId, winnerId)) return;
+  // Global rating always applies. When this challenge is a tournament
+  // match (challenges.tournament_id, wired by migration 0007), the SAME
+  // result also feeds a tournament-scoped rating -- player_ratings/
+  // rating_history support scope_type='tournament' (migration 0098) but,
+  // per the Phase 7/8 cross-system integration audit, nothing ever
+  // populated it: tournament and season leaderboards were schema-ready
+  // but permanently empty. Season-scoped ratings are NOT derived here --
+  // tournaments have no season_id/league_id linkage in the schema (the
+  // League/Season Platform tracks standings via season_participants
+  // directly, independently of the Tournament Platform), so there is no
+  // reliable mapping from a challenge to a season to populate.
+  const scopes: {
+    scopeType: PlayerRatingRow["scopeType"];
+    scopeId: string | null;
+  }[] = [
+    { scopeType: "global", scopeId: null },
+  ];
+  if (challenge.tournament_id) {
+    scopes.push({
+      scopeType: "tournament",
+      scopeId: challenge.tournament_id as string,
+    });
+  }
 
-  await updateRatingForResult(
-    winnerId,
-    challenge.game_id as string,
-    loserId,
-    1,
-    challengeId,
-  );
-  await updateRatingForResult(
-    loserId,
-    challenge.game_id as string,
-    winnerId,
-    0,
-    challengeId,
-  );
+  for (const { scopeType, scopeId } of scopes) {
+    await updateRatingForResult(
+      winnerId,
+      gameId,
+      loserId,
+      1,
+      challengeId,
+      scopeType,
+      scopeId,
+    );
+    await updateRatingForResult(
+      loserId,
+      gameId,
+      winnerId,
+      0,
+      challengeId,
+      scopeType,
+      scopeId,
+    );
+  }
 }
 
 /** Sweeps recent ChallengeCompleted events -- same bounded-window,

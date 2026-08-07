@@ -58,6 +58,55 @@ async function tournamentParticipantIds(
   return (data ?? []).map((r) => r.user_id as string);
 }
 
+/** Phase 8 (TOURNAMENT-004): everyone with a standing in a season -- direct
+ * participants plus, for team entries, the team's owner (season_participants
+ * has no per-member fan-out; notifying the owner matches how team-level
+ * decisions are represented elsewhere, e.g. TeamOwnershipTransferred). */
+async function seasonParticipantRecipientIds(
+  seasonId: unknown,
+): Promise<string[]> {
+  if (typeof seasonId !== "string") return [];
+  const { data: participants } = await supabase
+    .from("season_participants")
+    .select("user_id, team_id")
+    .eq("season_id", seasonId);
+  if (!participants || participants.length === 0) return [];
+
+  const userIds = participants
+    .map((p) => p.user_id as string | null)
+    .filter((id): id is string => id !== null);
+
+  const teamIds = participants
+    .map((p) => p.team_id as string | null)
+    .filter((id): id is string => id !== null);
+  let teamOwnerIds: string[] = [];
+  if (teamIds.length > 0) {
+    const { data: teams } = await supabase
+      .from("teams")
+      .select("owner_id")
+      .in("id", teamIds);
+    teamOwnerIds = (teams ?? []).map((t) => t.owner_id as string);
+  }
+
+  return [...new Set([...userIds, ...teamOwnerIds])];
+}
+
+/** Phase 7/6 fix: a resolved dispute's decision is meaningful to the same
+ * two parties as the underlying challenge, but ModeratorDecisionRecorded
+ * (emitted by _moderator/decisions.ts and _moderator/appeals.ts) had no
+ * EVENT_RULES entry at all -- both parties learned of a verdict only by
+ * polling the dispute themselves. */
+async function disputeParticipantIds(disputeId: unknown): Promise<string[]> {
+  if (typeof disputeId !== "string") return [];
+  const { data: dispute } = await supabase
+    .from("disputes")
+    .select("challenge_id")
+    .eq("id", disputeId)
+    .maybeSingle();
+  if (!dispute) return [];
+  return challengeParticipantIds(dispute.challenge_id);
+}
+
 /**
  * Phase 4 fix: chat.ts's sendMessage and escrow-transition.ts's
  * acceptChallenge both emit type "NotificationQueued" (a generic "please
@@ -182,6 +231,37 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
     category: "tournament",
     preferenceKey: "tournament_updates",
     resolveRecipients: (p) => tournamentParticipantIds(p.tournamentId),
+  },
+  // Cross-system integration audit: emitted since the initial Phase 8
+  // implementation (_tournament/workflow.ts) but never wired up here --
+  // players learned a tournament had finished or paid out only by polling.
+  // TournamentPrizeDistributionTriggered (the intermediate step, before
+  // funds actually move) is deliberately left unwired, same rationale as
+  // the Phase 4 "not every lifecycle event needs its own notification"
+  // note above -- TournamentCompleted/TournamentPrizesDistributed are the
+  // two outcomes a player actually cares about.
+  TournamentCompleted: {
+    category: "tournament",
+    preferenceKey: "tournament_updates",
+    resolveRecipients: (p) => tournamentParticipantIds(p.tournamentId),
+  },
+  TournamentPrizesDistributed: {
+    category: "tournament",
+    preferenceKey: "tournament_updates",
+    resolveRecipients: (p) => tournamentParticipantIds(p.tournamentId),
+  },
+  // Phase 8 (TOURNAMENT-004): League/Season Platform.
+  SeasonEnded: {
+    category: "tournament",
+    preferenceKey: "tournament_updates",
+    resolveRecipients: (p) => seasonParticipantRecipientIds(p.seasonId),
+  },
+  // Pre-existing event type (moderator decisions/appeals), also caught
+  // unwired by the same cross-system integration audit.
+  ModeratorDecisionRecorded: {
+    category: "moderator",
+    preferenceKey: "dispute_updates",
+    resolveRecipients: (p) => disputeParticipantIds(p.disputeId),
   },
 };
 
