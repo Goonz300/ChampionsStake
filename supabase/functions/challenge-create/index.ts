@@ -24,8 +24,13 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   );
   const result = await createChallenge(ctx.user!.id, body);
 
-  // Layer 6 (Velocity Detection): flags, never blocks -- the challenge
-  // above has already been created by the time this runs.
+  return successResponse(result, { status: 201 });
+}
+
+// Layer 6/15 (Velocity Detection / Middleware Integration): flags, never
+// blocks -- runs after the handler above via the framework's fraudCheck
+// stage (compose.ts), rather than inline post-handler code.
+async function fraudCheck(ctx: EdgeContext): Promise<void> {
   const { windowSeconds, maxCount } = config.fraud.challengeCreationVelocity;
   const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
   const { count } = await getServiceRoleClient()
@@ -40,8 +45,6 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     maxCount,
     windowSeconds,
   });
-
-  return successResponse(result, { status: 201 });
 }
 
 Deno.serve(
@@ -54,6 +57,7 @@ Deno.serve(
         windowSeconds: 60,
         maxRequests: 20,
       }),
+      fraudCheck,
     },
     handler,
   ),

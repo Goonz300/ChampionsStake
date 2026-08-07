@@ -51,23 +51,6 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
       idempotencyKey,
     );
 
-    // Layer 6 (Velocity Detection): flags, never blocks.
-    const { windowSeconds, maxCount } =
-      config.fraud.tournamentRegistrationVelocity;
-    const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
-    const { count } = await getServiceRoleClient()
-      .from("tournament_registrations")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", ctx.user!.id)
-      .gte("created_at", since);
-    await checkVelocity({
-      userId: ctx.user!.id,
-      signal: "tournament_registration",
-      count: count ?? 0,
-      maxCount,
-      windowSeconds,
-    });
-
     const responseBody = { registered: true };
     await completeIdempotentRequest(idempotencyKey, 201, responseBody);
     return successResponse(responseBody, { status: 201 });
@@ -93,6 +76,34 @@ function handler(ctx: EdgeContext): Promise<Response> {
   throw new ValidationError(`Unsupported method ${ctx.request.method}.`);
 }
 
+// Layer 6/15 (Velocity Detection / Middleware Integration): flags, never
+// blocks -- runs after the handler via the framework's fraudCheck stage
+// (compose.ts), decoupled from handlePost's idempotency try/catch (a
+// velocity-check failure must never mark an already-successful
+// registration as failed for idempotency purposes -- a real, if unlikely,
+// bug in the previous inline version this refactor also fixes). Only
+// applies to POST (registration) -- DELETE (withdrawal) has no velocity
+// signal defined.
+async function fraudCheck(ctx: EdgeContext): Promise<void> {
+  if (ctx.request.method !== "POST") return;
+
+  const { windowSeconds, maxCount } =
+    config.fraud.tournamentRegistrationVelocity;
+  const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
+  const { count } = await getServiceRoleClient()
+    .from("tournament_registrations")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", ctx.user!.id)
+    .gte("created_at", since);
+  await checkVelocity({
+    userId: ctx.user!.id,
+    signal: "tournament_registration",
+    count: count ?? 0,
+    maxCount,
+    windowSeconds,
+  });
+}
+
 Deno.serve(
   withEdgeFunction(
     {
@@ -103,6 +114,7 @@ Deno.serve(
         windowSeconds: 60,
         maxRequests: 10,
       }),
+      fraudCheck,
     },
     handler,
   ),

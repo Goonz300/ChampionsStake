@@ -45,6 +45,24 @@ export interface EdgeFunctionOptions {
    * entirely (e.g. a signed-request-only webhook receiver). */
   auth?: "required" | "optional" | "none";
   rateLimit?: (ctx: EdgeContext) => RateLimitOptions | null;
+  /**
+   * Layer 15 (Middleware Integration) / Layer 6 (Velocity Detection): runs
+   * AFTER the handler (business logic) has already produced its response,
+   * never before. This is deliberate, not a simplification -- fraud
+   * scoring in this codebase is flag-only and has been since AI-001
+   * ("scores above threshold auto-flag for moderator queue, never
+   * auto-block funds without human review in v1"). A pipeline stage that
+   * ran fraud scoring BEFORE business logic could only ever choose between
+   * two options this codebase has already rejected: blocking the action
+   * outright (contradicts the human-review rule) or scoring on
+   * not-yet-committed state (nothing to count yet). Placing it here keeps
+   * that rule intact while still giving every function a single, named
+   * place to opt into a velocity/fraud check instead of hand-wiring it
+   * inline (see challenge-create, tournament-register, payment-transfer).
+   * Errors are logged and swallowed -- a fraud-check failure must never
+   * fail the request whose outcome it's merely annotating.
+   */
+  fraudCheck?: (ctx: EdgeContext, response: Response) => Promise<void>;
 }
 
 type Handler = (ctx: EdgeContext) => Promise<Response>;
@@ -65,6 +83,8 @@ export function withEdgeFunction(
       requestId,
       functionName: options.functionName,
     });
+
+    let capturedCtx: EdgeContext | undefined;
 
     try {
       const response = await withTiming(options.functionName, async () => {
@@ -106,8 +126,21 @@ export function withEdgeFunction(
           });
         }
 
+        capturedCtx = ctx;
         return handler(ctx);
       });
+
+      if (options.fraudCheck && capturedCtx) {
+        try {
+          await options.fraudCheck(capturedCtx, response);
+        } catch (fraudCheckError) {
+          logger.error("Fraud check failed (non-fatal)", {
+            error: fraudCheckError instanceof Error
+              ? fraudCheckError.message
+              : String(fraudCheckError),
+          });
+        }
+      }
 
       const cors = corsHeadersFor(request);
       for (
