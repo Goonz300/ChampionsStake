@@ -24,10 +24,49 @@ import {
   respondToTournamentInvitation,
   spawnFromTemplate,
 } from "../_tournament/organizer-service.ts";
+import {
+  getTournamentDropOff,
+  getTournamentEcosystemHealth,
+  getTournamentParticipation,
+  getTournamentQuality,
+  getTournamentRevenue,
+} from "../_tournament/analytics.ts";
+import { getServiceRoleClient } from "../_shared/database/client.ts";
+import { AuthorizationError } from "../_shared/errors/index.ts";
 
 const getQuerySchema = z.object({
-  view: z.enum(["dashboard"]).default("dashboard"),
+  view: z.enum([
+    "dashboard",
+    "participation",
+    "revenue",
+    "drop_off",
+    "quality",
+    "ecosystem_health",
+  ]).default("dashboard"),
+  tournamentId: z.string().uuid().optional(),
 });
+
+/** Financial/participation analytics for a specific tournament are
+ * organizer(-of-that-tournament)-or-admin only -- revenue in particular is
+ * not public data the way the bracket/standings tournament-browse serves
+ * are. */
+async function requireTournamentOwnerOrAdmin(
+  ctx: EdgeContext,
+  tournamentId: string,
+): Promise<void> {
+  if (ctx.profile!.role === "administrator") return;
+  const supabase = getServiceRoleClient();
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("created_by")
+    .eq("id", tournamentId)
+    .maybeSingle();
+  if (!tournament || tournament.created_by !== ctx.user!.id) {
+    throw new AuthorizationError(
+      "Only this tournament's organizer or an administrator can view its analytics.",
+    );
+  }
+}
 
 const postBodySchema = z.discriminatedUnion("action", [
   z.object({
@@ -65,9 +104,33 @@ const postBodySchema = z.discriminatedUnion("action", [
 
 async function handleGet(ctx: EdgeContext): Promise<Response> {
   const url = new URL(ctx.request.url);
-  validateQuery(getQuerySchema, url);
+  const query = validateQuery(getQuerySchema, url);
   requireOrganizer(ctx.profile!);
-  return successResponse(await getOrganizerDashboard(ctx.user!.id));
+
+  if (query.view === "ecosystem_health") {
+    return successResponse(await getTournamentEcosystemHealth());
+  }
+  if (query.view === "dashboard") {
+    return successResponse(await getOrganizerDashboard(ctx.user!.id));
+  }
+
+  if (!query.tournamentId) {
+    throw new ValidationError("tournamentId is required for this view.");
+  }
+  await requireTournamentOwnerOrAdmin(ctx, query.tournamentId);
+
+  if (query.view === "participation") {
+    return successResponse(
+      await getTournamentParticipation(query.tournamentId),
+    );
+  }
+  if (query.view === "revenue") {
+    return successResponse(await getTournamentRevenue(query.tournamentId));
+  }
+  if (query.view === "drop_off") {
+    return successResponse(await getTournamentDropOff(query.tournamentId));
+  }
+  return successResponse(await getTournamentQuality(query.tournamentId));
 }
 
 async function handlePost(ctx: EdgeContext): Promise<Response> {
