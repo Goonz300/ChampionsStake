@@ -15,6 +15,19 @@ export interface AuthenticatedUser {
    * (Phase 3 Architecture Rev. 2, §4).
    */
   iat: number;
+  /**
+   * Authenticator Assurance Level ("aal1" | "aal2"), GoTrue's own claim
+   * reflecting whether this session completed an MFA challenge (aal2) or
+   * only a password (aal1). Phase 6: withdrawal-service.ts had no MFA/AAL2
+   * check anywhere (verified by grep before adding this) despite MFA
+   * infrastructure existing since Phase 3C — that infrastructure was
+   * entirely confined to apps/web's own routes (mfa/verify checks aal2 via
+   * Supabase's client SDK) and never reached the Edge Functions that
+   * actually move money. Defaults to "aal1" if the claim is absent (an
+   * older/non-MFA session), which is the correct fail-closed direction for
+   * requireAal2 (permissions/index.ts) to reject.
+   */
+  aal: string;
 }
 
 /**
@@ -57,6 +70,40 @@ export function decodeJwtIat(jwt: string): number {
 }
 
 /**
+ * Decodes the `aal` claim the same way decodeJwtIat decodes `iat` — reads a
+ * field from a token verifyRequestJwt has already confirmed is genuine,
+ * this is not itself a verification step. Falls back to "aal1" (the lower,
+ * more restrictive assurance level) if the claim is absent, rather than
+ * throwing — an older token minted before this claim existed should not be
+ * treated as an error, just as not-yet-MFA-verified.
+ */
+export function decodeJwtAal(jwt: string): string {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) {
+    throw new AuthenticationError(
+      "Malformed JWT: expected three dot-separated segments.",
+    );
+  }
+
+  const base64url = parts[1];
+  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/").padEnd(
+    base64url.length + ((4 - (base64url.length % 4)) % 4),
+    "=",
+  );
+
+  let payload: { aal?: unknown };
+  try {
+    payload = JSON.parse(atob(base64));
+  } catch {
+    throw new AuthenticationError(
+      "Malformed JWT: payload is not valid base64url-encoded JSON.",
+    );
+  }
+
+  return typeof payload.aal === "string" ? payload.aal : "aal1";
+}
+
+/**
  * Extracts and verifies the bearer JWT from an incoming request.
  * Verification is delegated to Supabase Auth itself (supabase.auth.getUser)
  * rather than manually decoding/verifying the JWT signature here — Supabase
@@ -85,6 +132,7 @@ export async function verifyRequestJwt(
     email: data.user.email ?? null,
     jwt,
     iat: decodeJwtIat(jwt),
+    aal: decodeJwtAal(jwt),
   };
 }
 

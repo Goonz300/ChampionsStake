@@ -15,19 +15,26 @@ import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
 import {
+  adminApproveWithdrawal,
   adminExportStatement,
   adminFreezeWallet,
   adminGetBalance,
   adminGetLedger,
   adminGetTransactions,
+  adminListPendingReviewWithdrawals,
+  adminRejectWithdrawal,
   adminUnfreezeWallet,
 } from "../_admin/wallets.ts";
 
 const getQuerySchema = paginationQuerySchema.extend({
-  view: z.enum(["balance", "transactions", "ledger", "statement"]).default(
+  view: z.enum([
     "balance",
-  ),
-  userId: z.string().uuid(),
+    "transactions",
+    "ledger",
+    "statement",
+    "pending_review_withdrawals",
+  ]).default("balance"),
+  userId: z.string().uuid().optional(),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
   format: z.enum(["json", "csv"]).default("json"),
@@ -40,11 +47,30 @@ const postBodySchema = z.discriminatedUnion("action", [
     reason: z.string().min(1),
   }),
   z.object({ action: z.literal("unfreeze"), walletId: z.string().uuid() }),
+  z.object({
+    action: z.literal("approve_withdrawal"),
+    intentId: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal("reject_withdrawal"),
+    intentId: z.string().uuid(),
+    reason: z.string().min(1),
+  }),
 ]);
 
 async function handleGet(ctx: EdgeContext): Promise<Response> {
   const url = new URL(ctx.request.url);
   const query = validateQuery(getQuerySchema, url);
+
+  if (query.view === "pending_review_withdrawals") {
+    return successResponse(
+      await adminListPendingReviewWithdrawals(query.limit),
+    );
+  }
+
+  if (!query.userId) {
+    throw new ValidationError(`userId is required for the ${query.view} view.`);
+  }
 
   if (query.view === "balance") {
     return successResponse(await adminGetBalance(query.userId));
@@ -89,9 +115,17 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
     await adminFreezeWallet(body.walletId, body.reason, ctx.user!.id);
     return successResponse({ frozen: true });
   }
+  if (body.action === "unfreeze") {
+    await adminUnfreezeWallet(body.walletId, ctx.user!.id);
+    return successResponse({ unfrozen: true });
+  }
+  if (body.action === "approve_withdrawal") {
+    const result = await adminApproveWithdrawal(body.intentId, ctx.user!.id);
+    return successResponse({ approved: true, ...result });
+  }
 
-  await adminUnfreezeWallet(body.walletId, ctx.user!.id);
-  return successResponse({ unfrozen: true });
+  await adminRejectWithdrawal(body.intentId, ctx.user!.id, body.reason);
+  return successResponse({ rejected: true });
 }
 
 function handler(ctx: EdgeContext): Promise<Response> {

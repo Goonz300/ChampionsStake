@@ -29,6 +29,7 @@ function makeUser(
     email: "player@example.com",
     jwt: "fake.jwt.token",
     iat: 1_700_000_000,
+    aal: "aal1",
     ...overrides,
   };
 }

@@ -8,6 +8,7 @@ import {
 } from "../_shared/errors/index.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
+import { config } from "../_shared/config/index.ts";
 import { getWalletByUserIdOrThrow } from "../_wallet/repository.ts";
 import {
   initiateWithdrawalHold,
@@ -17,6 +18,57 @@ import {
 import { getActiveProvider } from "./registry.ts";
 
 const WITHDRAWAL_MIN_CENTS = 1000;
+
+/**
+ * Phase 6: confirmed missing entirely before this fix (grep found no
+ * daily/monthly/rolling-window limit anywhere in _payment/). Counts
+ * withdrawal-kind payment_intents that are still "live" money commitments
+ * -- pending, pending_review, or completed -- within the window; 'failed'/
+ * 'expired' intents already returned their hold and don't count against
+ * the limit.
+ */
+async function assertWithinWithdrawalLimits(
+  userId: string,
+  amountCents: number,
+): Promise<void> {
+  const supabase = getServiceRoleClient();
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const startOfMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
+
+  const sumSince = async (since: Date): Promise<number> => {
+    const { data } = await supabase
+      .from("payment_intents")
+      .select("amount_cents")
+      .eq("user_id", userId)
+      .eq("kind", "withdrawal")
+      .in("status", ["pending", "pending_review", "completed"])
+      .gte("created_at", since.toISOString());
+    return (data ?? []).reduce(
+      (sum, row) => sum + (row.amount_cents as number),
+      0,
+    );
+  };
+
+  const [dailyTotal, monthlyTotal] = await Promise.all([
+    sumSince(startOfDay),
+    sumSince(startOfMonth),
+  ]);
+
+  if (dailyTotal + amountCents > config.withdrawal.dailyLimitCents) {
+    throw new ValidationError(
+      `This withdrawal would exceed your daily withdrawal limit of ${config.withdrawal.dailyLimitCents} cents.`,
+    );
+  }
+  if (monthlyTotal + amountCents > config.withdrawal.monthlyLimitCents) {
+    throw new ValidationError(
+      `This withdrawal would exceed your monthly withdrawal limit of ${config.withdrawal.monthlyLimitCents} cents.`,
+    );
+  }
+}
 
 export async function createPayoutMethod(
   userId: string,
@@ -80,12 +132,15 @@ export async function requestWithdrawal(
   payoutMethodId: string,
   amountCents: number,
   idempotencyKey: string,
-): Promise<{ intentId: string; providerRef: string }> {
+): Promise<
+  { intentId: string; providerRef: string | null; pendingReview: boolean }
+> {
   if (amountCents < WITHDRAWAL_MIN_CENTS) {
     throw new ValidationError(
       `Withdrawal amount must be at least ${WITHDRAWAL_MIN_CENTS} cents (Business Rules §6).`,
     );
   }
+  await assertWithinWithdrawalLimits(userId, amountCents);
 
   const supabase = getServiceRoleClient();
 
@@ -103,7 +158,7 @@ export async function requestWithdrawal(
     .select("id")
     .eq("wallet_id", wallet.walletId)
     .eq("kind", "withdrawal")
-    .eq("status", "pending")
+    .in("status", ["pending", "pending_review"])
     .maybeSingle();
   if (pendingIntent) {
     throw new ConflictError(
@@ -128,6 +183,48 @@ export async function requestWithdrawal(
     hold_transaction_id: holdResult.transactionId,
     payout_method_id: payoutMethodId,
   };
+
+  // Phase 6: funds are already safely on hold (moved to the `pending`
+  // sub-balance above) at this point -- a high-value withdrawal is held
+  // for administrator review BEFORE the provider transfer call is ever
+  // made, rather than reaching out to move real money and only reviewing
+  // after the fact.
+  if (amountCents >= config.withdrawal.manualReviewThresholdCents) {
+    const { data: intent, error } = await supabase
+      .from("payment_intents")
+      .insert({ ...intentInsert, status: "pending_review" })
+      .select("id")
+      .single();
+    if (error || !intent) {
+      await reverseWithdrawalHold(
+        wallet.walletId,
+        amountCents,
+        "Failed to record withdrawal intent for manual review",
+        `${idempotencyKey}-reverse`,
+      );
+      throw new Error(`Failed to record withdrawal intent: ${error?.message}`);
+    }
+
+    await recordAudit({
+      actorId: userId,
+      actorType: "user",
+      action: "WithdrawalHeldForReview",
+      category: "financial",
+      targetTable: "payment_intents",
+      targetId: intent.id,
+      metadata: {
+        amountCents,
+        thresholdCents: config.withdrawal.manualReviewThresholdCents,
+      },
+    });
+    await emit({
+      type: "TransactionCompleted",
+      payload: { userId, event: "WithdrawalHeldForReview" },
+      emittedBy: "payment-transfer",
+    });
+
+    return { intentId: intent.id, providerRef: null, pendingReview: true };
+  }
 
   try {
     const transfer = await provider.initiateTransfer({
@@ -162,7 +259,11 @@ export async function requestWithdrawal(
       emittedBy: "payment-transfer",
     });
 
-    return { intentId: intent.id, providerRef: transfer.providerRef };
+    return {
+      intentId: intent.id,
+      providerRef: transfer.providerRef,
+      pendingReview: false,
+    };
   } catch (err) {
     await reverseWithdrawalHold(
       wallet.walletId,
@@ -172,6 +273,121 @@ export async function requestWithdrawal(
     );
     throw err;
   }
+}
+
+/**
+ * Administrator approves a withdrawal held at status='pending_review' --
+ * NOW calls the provider transfer (money leaves the platform for the first
+ * time at this point, not before). Funds have been on hold since the
+ * original request; approval does not touch the wallet ledger itself.
+ */
+export async function approveHeldWithdrawal(
+  intentId: string,
+  adminId: string,
+): Promise<{ providerRef: string }> {
+  const supabase = getServiceRoleClient();
+  const { data: intent } = await supabase
+    .from("payment_intents")
+    .select("*")
+    .eq("id", intentId)
+    .eq("kind", "withdrawal")
+    .maybeSingle();
+
+  if (!intent) {
+    throw new ValidationError(`Withdrawal intent ${intentId} not found.`);
+  }
+  if (intent.status !== "pending_review") {
+    throw new ConflictError(
+      `Withdrawal intent ${intentId} is not awaiting review (status: ${intent.status}).`,
+    );
+  }
+
+  const { data: payoutMethod } = await supabase
+    .from("payout_methods")
+    .select("*")
+    .eq("id", intent.payout_method_id)
+    .maybeSingle();
+  if (!payoutMethod) {
+    throw new Error(
+      `Payout method ${intent.payout_method_id} no longer exists.`,
+    );
+  }
+
+  const provider = await getActiveProvider();
+  const transfer = await provider.initiateTransfer({
+    amountCents: intent.amount_cents,
+    currency: "NGN",
+    recipientCode: payoutMethod.recipient_code,
+    reason: "ChampionsStake withdrawal (reviewed)",
+    idempotencyKey: intent.idempotency_key,
+  });
+
+  await supabase
+    .from("payment_intents")
+    .update({ status: "pending", provider_ref: transfer.providerRef })
+    .eq("id", intentId);
+
+  await recordAudit({
+    actorId: adminId,
+    actorType: "administrator",
+    action: "WithdrawalReviewApproved",
+    category: "financial",
+    targetTable: "payment_intents",
+    targetId: intentId,
+    metadata: { providerRef: transfer.providerRef },
+  });
+
+  return { providerRef: transfer.providerRef };
+}
+
+/**
+ * Administrator rejects a withdrawal held at status='pending_review' --
+ * reverses the hold (funds return to `available`) and marks the intent
+ * failed. No provider call is ever made for a rejected withdrawal.
+ */
+export async function rejectHeldWithdrawal(
+  intentId: string,
+  adminId: string,
+  reason: string,
+): Promise<void> {
+  const supabase = getServiceRoleClient();
+  const { data: intent } = await supabase
+    .from("payment_intents")
+    .select("*")
+    .eq("id", intentId)
+    .eq("kind", "withdrawal")
+    .maybeSingle();
+
+  if (!intent) {
+    throw new ValidationError(`Withdrawal intent ${intentId} not found.`);
+  }
+  if (intent.status !== "pending_review") {
+    throw new ConflictError(
+      `Withdrawal intent ${intentId} is not awaiting review (status: ${intent.status}).`,
+    );
+  }
+
+  await reverseWithdrawalHold(
+    intent.wallet_id,
+    intent.amount_cents,
+    `Rejected by administrator: ${reason}`,
+    `${intent.idempotency_key}-review-reject`,
+  );
+
+  await supabase.from("payment_intents").update({ status: "failed" }).eq(
+    "id",
+    intentId,
+  );
+
+  await recordAudit({
+    actorId: adminId,
+    actorType: "administrator",
+    action: "WithdrawalReviewRejected",
+    category: "financial",
+    targetTable: "payment_intents",
+    targetId: intentId,
+    metadata: { reason },
+  });
 }
 
 /** Called by webhook-service.ts once the provider confirms the transfer's

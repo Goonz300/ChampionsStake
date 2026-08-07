@@ -184,6 +184,23 @@ export const config = {
       maxCount: Number(optionalEnv("FRAUD_PASSWORD_RESET_VELOCITY_MAX", "5")),
     },
   },
+  // Phase 6: withdrawal risk controls -- confirmed missing entirely before
+  // this phase (only a per-transaction minimum existed, WITHDRAWAL_MIN_CENTS
+  // in withdrawal-service.ts, unaffected by this section).
+  withdrawal: {
+    dailyLimitCents: Number(
+      optionalEnv("WITHDRAWAL_DAILY_LIMIT_CENTS", "500000"),
+    ), // $5,000
+    monthlyLimitCents: Number(
+      optionalEnv("WITHDRAWAL_MONTHLY_LIMIT_CENTS", "5000000"), // $50,000
+    ),
+    // At or above this amount, a withdrawal is held at status='pending_review'
+    // (migration 0083) instead of being sent to the payment provider
+    // immediately -- an administrator must approve or reject it.
+    manualReviewThresholdCents: Number(
+      optionalEnv("WITHDRAWAL_MANUAL_REVIEW_THRESHOLD_CENTS", "200000"), // $2,000
+    ),
+  },
   // Phase 4: the actual push/email sender migration 0065 explicitly
   // deferred to "a future Edge Function phase." resendApiKey is optional
   // (not requiredEnv) -- a deployment that hasn't configured it yet must

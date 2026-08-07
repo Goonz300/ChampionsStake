@@ -6,7 +6,10 @@ import {
   type EdgeContext,
   withEdgeFunction,
 } from "../_shared/middleware/index.ts";
-import { requireVerifiedPlayer } from "../_shared/permissions/index.ts";
+import {
+  requireAal2IfMfaEnrolled,
+  requireVerifiedPlayer,
+} from "../_shared/permissions/index.ts";
 import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { idempotencyKeyHeaderSchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
@@ -48,6 +51,12 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   }
 
   if (body.action === "withdraw") {
+    // Phase 6: MFA/AAL2 enforcement -- confirmed missing entirely from the
+    // Edge Function layer before this fix (see requireAal2IfMfaEnrolled's
+    // own doc comment). Only enforced for accounts that actually have MFA
+    // enrolled; never blocks an account that hasn't opted into it.
+    await requireAal2IfMfaEnrolled(ctx.user!);
+
     const idempotencyKey = idempotencyKeyHeaderSchema.parse(
       ctx.request.headers.get("Idempotency-Key"),
     );
