@@ -37,26 +37,49 @@ function ownerColumn(
     : "tournament_id";
 }
 
-async function getOrCreateEscrowAccountFor(
+async function selectEscrowAccountFor(
+  column: "challenge_id" | "tournament_id",
   relatedEntity: RelatedEntityRef,
-): Promise<EscrowAccountRow> {
+): Promise<EscrowAccountRow | null> {
   const supabase = getServiceRoleClient();
-  const column = ownerColumn(relatedEntity);
-
-  const { data: existing } = await supabase
+  const { data } = await supabase
     .from("escrow_accounts")
     .select("id, total_locked_cents, status")
     .eq(column, relatedEntity.id)
     .maybeSingle();
 
-  if (existing) {
-    return {
-      id: existing.id,
-      totalLockedCents: existing.total_locked_cents,
-      status: existing.status,
-    };
-  }
+  if (!data) return null;
+  return {
+    id: data.id,
+    totalLockedCents: data.total_locked_cents,
+    status: data.status,
+  };
+}
 
+/**
+ * Hostile-review fix: this SELECT-then-INSERT was racy for tournament
+ * escrow specifically, which is POOLED (multiple registrants' first-ever
+ * lockToEscrow calls for a brand-new tournament can land concurrently, all
+ * seeing "no existing row"). The second concurrent INSERT would violate
+ * escrow_accounts.tournament_id's unique constraint -- and since this
+ * function is called from INSIDE lockToEscrow, AFTER postBalancedEntries
+ * has already committed the real money movement, an uncaught error here
+ * would leave a player's stake genuinely locked in escrow while
+ * registerForTournament's tournament_registrations INSERT (which runs
+ * after lockToEscrow returns) never happens -- money moved, no
+ * registration record, no error recovery. Fixed with the same
+ * insert-then-re-read-on-unique-violation pattern
+ * _shared/idempotency/index.ts already established for an analogous race.
+ */
+async function getOrCreateEscrowAccountFor(
+  relatedEntity: RelatedEntityRef,
+): Promise<EscrowAccountRow> {
+  const column = ownerColumn(relatedEntity);
+
+  const existing = await selectEscrowAccountFor(column, relatedEntity);
+  if (existing) return existing;
+
+  const supabase = getServiceRoleClient();
   const { data: created, error } = await supabase
     .from("escrow_accounts")
     .insert({
@@ -67,17 +90,25 @@ async function getOrCreateEscrowAccountFor(
     .select("id, total_locked_cents, status")
     .single();
 
-  if (error || !created) {
-    throw new Error(
-      `Failed to create escrow account for ${relatedEntity.table}:${relatedEntity.id}: ${error?.message}`,
-    );
+  if (created) {
+    return {
+      id: created.id,
+      totalLockedCents: created.total_locked_cents,
+      status: created.status,
+    };
   }
 
-  return {
-    id: created.id,
-    totalLockedCents: created.total_locked_cents,
-    status: created.status,
-  };
+  // Postgres unique_violation (23505) -- another concurrent call already
+  // created the row between our SELECT and this INSERT. Re-read it rather
+  // than treating this as a real failure.
+  if (error?.code === "23505") {
+    const raceWinner = await selectEscrowAccountFor(column, relatedEntity);
+    if (raceWinner) return raceWinner;
+  }
+
+  throw new Error(
+    `Failed to create escrow account for ${relatedEntity.table}:${relatedEntity.id}: ${error?.message}`,
+  );
 }
 
 async function adjustLocked(
