@@ -15,6 +15,7 @@ function toTournament(row: Record<string, unknown>): Tournament {
     payoutStructure: row.payout_structure as Record<string, number>,
     status: row.status as Tournament["status"],
     createdBy: row.created_by as string,
+    visibility: row.visibility as Tournament["visibility"],
   };
 }
 

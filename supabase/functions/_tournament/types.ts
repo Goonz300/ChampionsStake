@@ -26,6 +26,7 @@ export interface Tournament {
   payoutStructure: Record<string, number>;
   status: TournamentStatus;
   createdBy: string;
+  visibility: "public" | "private" | "invite_only";
 }
 
 export interface Registration {

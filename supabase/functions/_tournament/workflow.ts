@@ -63,17 +63,26 @@ import { computeNextRound, getBracketGenerator } from "./bracket.ts";
 export const createTournamentSchema = z.object({
   gameId: z.string().uuid(),
   name: z.string().min(3).max(100),
-  format: z.enum(["single_elim", "double_elim", "round_robin"]),
+  format: z.enum(["single_elim", "double_elim", "round_robin", "swiss"]),
   entryFeeCents: z.number().int().nonnegative(),
   registrationOpensAt: z.string().datetime({ offset: true }).optional(),
   registrationClosesAt: z.string().datetime({ offset: true }).optional(),
   checkInOpensAt: z.string().datetime({ offset: true }).optional(),
   startsAt: z.string().datetime({ offset: true }).optional(),
+  // Phase 8 (TOURNAMENT-007): Organizer Platform additions, all optional
+  // so the existing admin-created-tournament call shape keeps working
+  // unchanged.
+  visibility: z.enum(["public", "private", "invite_only"]).default("public"),
+  isRecurring: z.boolean().default(false),
+  recurrenceRule: z.string().max(200).nullable().default(null),
+  templateId: z.string().uuid().nullable().default(null),
+  sponsorName: z.string().max(200).nullable().default(null),
+  sponsorLogoUrl: z.string().url().nullable().default(null),
 });
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
 
 export async function createTournament(
-  adminId: string,
+  creatorId: string,
   input: CreateTournamentInput,
 ): Promise<{ id: string }> {
   const supabase = getServiceRoleClient();
@@ -85,11 +94,17 @@ export async function createTournament(
       format: input.format,
       entry_fee_cents: input.entryFeeCents,
       status: "draft",
-      created_by: adminId,
+      created_by: creatorId,
       registration_opens_at: input.registrationOpensAt,
       registration_closes_at: input.registrationClosesAt,
       check_in_opens_at: input.checkInOpensAt,
       starts_at: input.startsAt,
+      visibility: input.visibility,
+      is_recurring: input.isRecurring,
+      recurrence_rule: input.recurrenceRule,
+      template_id: input.templateId,
+      sponsor_name: input.sponsorName,
+      sponsor_logo_url: input.sponsorLogoUrl,
     })
     .select("id")
     .single();
@@ -98,9 +113,25 @@ export async function createTournament(
     throw new Error(`Failed to create tournament: ${error?.message}`);
   }
 
+  // Phase 8 (TOURNAMENT-007): this used to hardcode actorType:
+  // "administrator" (tournament creation was admin-only). Now that
+  // organizers (migration 0100) can also create tournaments, the actor
+  // type is looked up rather than assumed -- recordAudit's actorType is
+  // for the audit trail's own accuracy, not an authorization decision
+  // (that already happened in the calling Edge Function via
+  // requireOrganizer, which already covers both roles).
+  const { data: creatorProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", creatorId)
+    .maybeSingle();
+  const actorType = creatorProfile?.role === "administrator"
+    ? "administrator"
+    : "user";
+
   await recordAudit({
-    actorId: adminId,
-    actorType: "administrator",
+    actorId: creatorId,
+    actorType,
     action: "TournamentCreated",
     category: "tournament",
     targetTable: "tournaments",
@@ -164,6 +195,24 @@ export async function registerForTournament(
     throw new ConflictError(
       `Tournament ${tournamentId} is not open for registration (status: ${tournament.status}).`,
     );
+  }
+
+  // Phase 8 (TOURNAMENT-007): invite-only enforcement. Checked before any
+  // escrow lock so an unauthorized attempt fails before money moves.
+  if (tournament.visibility === "invite_only") {
+    const supabase = getServiceRoleClient();
+    const { data: invitation } = await supabase
+      .from("tournament_invitations")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .eq("invited_user_id", userId)
+      .eq("status", "accepted")
+      .maybeSingle();
+    if (!invitation) {
+      throw new AuthorizationError(
+        "This tournament is invite-only -- you need an accepted invitation to register.",
+      );
+    }
   }
 
   const existing = await getRegistration(tournamentId, userId);

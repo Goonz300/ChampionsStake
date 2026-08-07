@@ -14,6 +14,14 @@ export function isSupportStaff(profile: UserProfile): boolean {
   return profile.role === "support" || profile.role === "administrator";
 }
 
+/** Phase 8 (TOURNAMENT-007): 'organizer' is an admin-granted role
+ * (migration 0100), same trust posture as moderator status -- not
+ * self-service, since organizers create real-money tournaments.
+ * Administrators implicitly retain full organizer capability. */
+export function isOrganizer(profile: UserProfile): boolean {
+  return profile.role === "organizer" || profile.role === "administrator";
+}
+
 export function isVerified(profile: UserProfile): boolean {
   return profile.kyc_status === "verified";
 }

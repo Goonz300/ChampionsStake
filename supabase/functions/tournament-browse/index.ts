@@ -34,6 +34,22 @@ async function handler(ctx: EdgeContext): Promise<Response> {
     });
     if (query.gameId) q = q.eq("game_id", query.gameId);
     if (query.status) q = q.eq("status", query.status);
+
+    // Phase 8 (TOURNAMENT-007): private tournaments were never filtered
+    // out of this list at all before organizer-created private/invite-only
+    // tournaments existed -- a real gap this milestone's own new visibility
+    // column surfaced. A caller sees public tournaments, invite_only
+    // tournaments (visible, but registration itself is still gated --
+    // see registerForTournament), and their OWN private/invite_only
+    // tournaments; administrators see everything.
+    const isAdmin = ctx.profile?.role === "administrator";
+    if (!isAdmin) {
+      const callerId = ctx.user?.id;
+      q = callerId
+        ? q.or(`visibility.neq.private,created_by.eq.${callerId}`)
+        : q.eq("visibility", "public");
+    }
+
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     return successResponse(data ?? []);

@@ -7,7 +7,7 @@ import type { AuthenticatedUser } from "./jwt.ts";
 export interface UserProfile {
   id: string;
   display_name: string;
-  role: "player" | "moderator" | "administrator" | "support";
+  role: "player" | "moderator" | "administrator" | "support" | "organizer";
   status: "unverified" | "active" | "suspended" | "closed";
   kyc_status: "unverified" | "pending" | "verified" | "rejected";
   trust_score: number;

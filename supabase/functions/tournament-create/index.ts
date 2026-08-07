@@ -4,7 +4,7 @@ import {
   type EdgeContext,
   withEdgeFunction,
 } from "../_shared/middleware/index.ts";
-import { requireAdministrator } from "../_shared/permissions/index.ts";
+import { requireOrganizer } from "../_shared/permissions/index.ts";
 import { parseJsonBody, validateBody } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import {
@@ -13,7 +13,10 @@ import {
 } from "../_tournament/workflow.ts";
 
 async function handler(ctx: EdgeContext): Promise<Response> {
-  requireAdministrator(ctx.profile!);
+  // Phase 8 (TOURNAMENT-007): widened from requireAdministrator to
+  // requireOrganizer (which still includes administrators) -- tournament
+  // creation was admin-only before the Organizer Platform existed.
+  requireOrganizer(ctx.profile!);
   const body = validateBody(
     createTournamentSchema,
     await parseJsonBody(ctx.request),

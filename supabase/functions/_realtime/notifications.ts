@@ -152,6 +152,15 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
         typeof p.newOwnerId === "string" ? [p.newOwnerId] : [],
       ),
   },
+  // Phase 8 (TOURNAMENT-007): Organizer Platform.
+  TournamentInvitationSent: {
+    category: "tournament",
+    preferenceKey: "tournament_updates",
+    resolveRecipients: (p) =>
+      Promise.resolve(
+        typeof p.invitedUserId === "string" ? [p.invitedUserId] : [],
+      ),
+  },
 };
 
 async function isCategoryEnabled(

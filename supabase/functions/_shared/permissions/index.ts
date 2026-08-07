@@ -4,6 +4,7 @@ import { AuthorizationError } from "../errors/index.ts";
 import {
   isAdministrator,
   isModerator,
+  isOrganizer,
   isSupportStaff,
   isVerified,
 } from "../auth/roles.ts";
@@ -38,6 +39,15 @@ export function requireModerator(profile: UserProfile): void {
   if (!isModerator(profile)) {
     throw new AuthorizationError(
       "This action requires moderator or administrator privileges.",
+    );
+  }
+}
+
+export function requireOrganizer(profile: UserProfile): void {
+  assertAccountActive(profile);
+  if (!isOrganizer(profile)) {
+    throw new AuthorizationError(
+      "This action requires organizer or administrator privileges.",
     );
   }
 }
