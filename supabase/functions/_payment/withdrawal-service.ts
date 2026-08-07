@@ -16,6 +16,7 @@ import {
   settleWithdrawal,
 } from "../_wallet/transfer.ts";
 import { getActiveProvider } from "./registry.ts";
+import { assertNotSanctioned } from "./sanctions.ts";
 
 const WITHDRAWAL_MIN_CENTS = 1000;
 
@@ -86,6 +87,17 @@ export async function createPayoutMethod(
     accountName,
   });
 
+  // Phase 6: screens the PROVIDER'S resolved account name (the bank-
+  // verified identity behind the account), not the client-supplied
+  // accountName -- screening only the client-supplied value would be
+  // trivially bypassable by typing something innocuous while the real bank
+  // account resolves to a blocklisted name.
+  await assertNotSanctioned(
+    result.resolvedAccountName,
+    userId,
+    "payout_method_creation",
+  );
+
   const { data, error } = await supabase
     .from("payout_methods")
     .insert({
@@ -150,6 +162,11 @@ export async function requestWithdrawal(
   if (!payoutMethod || payoutMethod.user_id !== userId) {
     throw new AuthorizationError("This payout method does not belong to you.");
   }
+
+  // Phase 6: re-screens at withdrawal time too, not just at payout-method
+  // creation -- catches a name added to the blocklist after this payout
+  // method was already on file.
+  await assertNotSanctioned(payoutMethod.account_name, userId, "withdrawal");
 
   const wallet = await getWalletByUserIdOrThrow(userId);
 

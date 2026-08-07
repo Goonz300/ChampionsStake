@@ -15,6 +15,7 @@ import { paginationQuerySchema } from "../_shared/validation/schemas.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
 import {
+  adminAddSanctionsBlocklistEntry,
   adminApproveWithdrawal,
   adminExportStatement,
   adminFreezeWallet,
@@ -22,7 +23,9 @@ import {
   adminGetLedger,
   adminGetTransactions,
   adminListPendingReviewWithdrawals,
+  adminListSanctionsBlocklist,
   adminRejectWithdrawal,
+  adminRemoveSanctionsBlocklistEntry,
   adminUnfreezeWallet,
 } from "../_admin/wallets.ts";
 
@@ -33,6 +36,7 @@ const getQuerySchema = paginationQuerySchema.extend({
     "ledger",
     "statement",
     "pending_review_withdrawals",
+    "sanctions_blocklist",
   ]).default("balance"),
   userId: z.string().uuid().optional(),
   from: z.string().datetime({ offset: true }).optional(),
@@ -56,6 +60,15 @@ const postBodySchema = z.discriminatedUnion("action", [
     intentId: z.string().uuid(),
     reason: z.string().min(1),
   }),
+  z.object({
+    action: z.literal("add_sanctions_blocklist_entry"),
+    fullName: z.string().min(1),
+    reason: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal("remove_sanctions_blocklist_entry"),
+    entryId: z.string().uuid(),
+  }),
 ]);
 
 async function handleGet(ctx: EdgeContext): Promise<Response> {
@@ -66,6 +79,9 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
     return successResponse(
       await adminListPendingReviewWithdrawals(query.limit),
     );
+  }
+  if (query.view === "sanctions_blocklist") {
+    return successResponse(await adminListSanctionsBlocklist(query.limit));
   }
 
   if (!query.userId) {
@@ -123,9 +139,21 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
     const result = await adminApproveWithdrawal(body.intentId, ctx.user!.id);
     return successResponse({ approved: true, ...result });
   }
+  if (body.action === "reject_withdrawal") {
+    await adminRejectWithdrawal(body.intentId, ctx.user!.id, body.reason);
+    return successResponse({ rejected: true });
+  }
+  if (body.action === "add_sanctions_blocklist_entry") {
+    const result = await adminAddSanctionsBlocklistEntry(
+      body.fullName,
+      body.reason,
+      ctx.user!.id,
+    );
+    return successResponse(result, { status: 201 });
+  }
 
-  await adminRejectWithdrawal(body.intentId, ctx.user!.id, body.reason);
-  return successResponse({ rejected: true });
+  await adminRemoveSanctionsBlocklistEntry(body.entryId, ctx.user!.id);
+  return successResponse({ removed: true });
 }
 
 function handler(ctx: EdgeContext): Promise<Response> {

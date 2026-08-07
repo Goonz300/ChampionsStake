@@ -60,18 +60,43 @@ export async function generateStatement(
   // listTransactions returns newest-first; a statement reads chronologically.
   const chronological = [...transactions].reverse();
 
+  // Phase 6 fix: this previously issued one additional query PER
+  // transaction inside the loop below (confirmed by this phase's own audit
+  // -- a real N+1 pattern, up to 10,000 extra round trips for a heavy-
+  // activity wallet over a wide date range). A single batched query for
+  // every transaction's legs, grouped in memory, replaces it -- same
+  // result, one query instead of N.
+  const transactionIds = chronological.map((tx) => tx.id);
+  const legsByTransactionId = new Map<
+    string,
+    { direction: string; amount_cents: number }[]
+  >();
+
+  if (transactionIds.length > 0) {
+    const { data: allLegs } = await supabase
+      .from("wallet_ledger")
+      .select("wallet_transaction_id, direction, amount_cents")
+      .in("wallet_transaction_id", transactionIds)
+      .eq("wallet_id", walletId)
+      .eq("account_type", "available");
+
+    for (const leg of allLegs ?? []) {
+      const existing = legsByTransactionId.get(leg.wallet_transaction_id);
+      const entry = {
+        direction: leg.direction,
+        amount_cents: leg.amount_cents,
+      };
+      if (existing) existing.push(entry);
+      else legsByTransactionId.set(leg.wallet_transaction_id, [entry]);
+    }
+  }
+
   let runningBalance = openingBalanceCents;
   const lines: StatementLine[] = [];
 
   for (const tx of chronological) {
-    const { data: legs } = await supabase
-      .from("wallet_ledger")
-      .select("direction, amount_cents")
-      .eq("wallet_transaction_id", tx.id)
-      .eq("wallet_id", walletId)
-      .eq("account_type", "available");
-
-    const netForThisWallet = (legs ?? []).reduce(
+    const legs = legsByTransactionId.get(tx.id) ?? [];
+    const netForThisWallet = legs.reduce(
       (sum, leg) =>
         sum +
         (leg.direction === "credit" ? leg.amount_cents : -leg.amount_cents),
