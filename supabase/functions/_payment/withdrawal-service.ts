@@ -190,6 +190,10 @@ export async function requestWithdrawal(
   );
 
   const provider = await getActiveProvider();
+  const intentStatus =
+    amountCents >= config.withdrawal.manualReviewThresholdCents
+      ? "pending_review" as const
+      : "pending" as const;
   const intentInsert = {
     kind: "withdrawal" as const,
     user_id: userId,
@@ -199,29 +203,49 @@ export async function requestWithdrawal(
     idempotency_key: idempotencyKey,
     hold_transaction_id: holdResult.transactionId,
     payout_method_id: payoutMethodId,
+    status: intentStatus,
   };
 
-  // Phase 6: funds are already safely on hold (moved to the `pending`
-  // sub-balance above) at this point -- a high-value withdrawal is held
-  // for administrator review BEFORE the provider transfer call is ever
-  // made, rather than reaching out to move real money and only reviewing
-  // after the fact.
-  if (amountCents >= config.withdrawal.manualReviewThresholdCents) {
-    const { data: intent, error } = await supabase
-      .from("payment_intents")
-      .insert({ ...intentInsert, status: "pending_review" })
-      .select("id")
-      .single();
-    if (error || !intent) {
-      await reverseWithdrawalHold(
-        wallet.walletId,
-        amountCents,
-        "Failed to record withdrawal intent for manual review",
-        `${idempotencyKey}-reverse`,
-      );
-      throw new Error(`Failed to record withdrawal intent: ${error?.message}`);
-    }
+  // Hostile-review fix: the payment_intents row is now inserted BEFORE any
+  // provider call, for BOTH branches below -- not just the pending_review
+  // one. uq_payment_intents_one_active_withdrawal_per_wallet (migration
+  // 0085) makes "one active withdrawal per wallet" a real database
+  // guarantee; inserting first means a losing concurrent request fails
+  // HERE, before it could ever reach the payment provider and actually
+  // send money. The previous ordering (provider call, then insert) meant
+  // two concurrent requests could both pass the earlier application-level
+  // pending-intent check, both call the provider, and only THEN have the
+  // second one fail at insert time -- by which point real money had
+  // already been sent twice.
+  const { data: intent, error: insertError } = await supabase
+    .from("payment_intents")
+    .insert(intentInsert)
+    .select("id")
+    .single();
 
+  if (insertError || !intent) {
+    await reverseWithdrawalHold(
+      wallet.walletId,
+      amountCents,
+      "Failed to record withdrawal intent",
+      `${idempotencyKey}-reverse`,
+    );
+    if (insertError?.code === "23505") {
+      throw new ConflictError(
+        "You already have a withdrawal in progress. Wait for it to complete before requesting another.",
+      );
+    }
+    throw new Error(
+      `Failed to record withdrawal intent: ${insertError?.message}`,
+    );
+  }
+
+  // Phase 6: funds are already safely on hold (moved to the `pending`
+  // sub-balance above) and the intent is durably recorded at this point --
+  // a high-value withdrawal is held for administrator review BEFORE the
+  // provider transfer call is ever made, rather than reaching out to move
+  // real money and only reviewing after the fact.
+  if (intentStatus === "pending_review") {
     await recordAudit({
       actorId: userId,
       actorType: "user",
@@ -252,13 +276,14 @@ export async function requestWithdrawal(
       idempotencyKey,
     });
 
-    const { data: intent, error } = await supabase
+    const { error: updateError } = await supabase
       .from("payment_intents")
-      .insert({ ...intentInsert, provider_ref: transfer.providerRef })
-      .select("id")
-      .single();
-    if (error || !intent) {
-      throw new Error(`Failed to record withdrawal intent: ${error?.message}`);
+      .update({ provider_ref: transfer.providerRef })
+      .eq("id", intent.id);
+    if (updateError) {
+      throw new Error(
+        `Failed to record provider reference: ${updateError.message}`,
+      );
     }
 
     await recordAudit({
@@ -282,6 +307,17 @@ export async function requestWithdrawal(
       pendingReview: false,
     };
   } catch (err) {
+    // Hostile-review fix: the payment_intents row now exists (inserted
+    // before the provider call, above) by the time this can fail -- it
+    // must be marked 'failed' here, not left at 'pending' with no
+    // provider_ref. Left uncleaned, it would sit inside
+    // uq_payment_intents_one_active_withdrawal_per_wallet's partial index
+    // forever, permanently blocking this wallet from ever withdrawing
+    // again.
+    await supabase.from("payment_intents").update({ status: "failed" }).eq(
+      "id",
+      intent.id,
+    );
     await reverseWithdrawalHold(
       wallet.walletId,
       amountCents,
@@ -303,58 +339,114 @@ export async function approveHeldWithdrawal(
   adminId: string,
 ): Promise<{ providerRef: string }> {
   const supabase = getServiceRoleClient();
-  const { data: intent } = await supabase
+
+  // Hostile-review fix: this was previously a SELECT, a status check, THEN
+  // an UPDATE -- not atomic. Two concurrent approve calls (two admins, or
+  // a double-click) could both read status='pending_review' before either
+  // UPDATE landed, both call the payment provider, and send money twice.
+  // An atomic UPDATE ... WHERE status='pending_review' ... RETURNING (the
+  // same claim pattern this codebase already uses elsewhere for an
+  // identical class of race, e.g. Phase 3C's recovery-code consumption)
+  // means only ONE concurrent caller can ever win the claim; every other
+  // caller gets zero rows back and must not proceed to the provider call.
+  const { data: claimed, error: claimError } = await supabase
     .from("payment_intents")
-    .select("*")
+    .update({ status: "pending" })
     .eq("id", intentId)
     .eq("kind", "withdrawal")
+    .eq("status", "pending_review")
+    .select("*")
     .maybeSingle();
 
-  if (!intent) {
-    throw new ValidationError(`Withdrawal intent ${intentId} not found.`);
+  if (claimError) {
+    throw new Error(
+      `Failed to claim withdrawal intent ${intentId}: ${claimError.message}`,
+    );
   }
-  if (intent.status !== "pending_review") {
+  if (!claimed) {
+    // Either it doesn't exist, or it's not (or no longer) pending_review --
+    // including the case where another concurrent call already claimed it.
+    const { data: existing } = await supabase
+      .from("payment_intents")
+      .select("status")
+      .eq("id", intentId)
+      .eq("kind", "withdrawal")
+      .maybeSingle();
+    if (!existing) {
+      throw new ValidationError(`Withdrawal intent ${intentId} not found.`);
+    }
     throw new ConflictError(
-      `Withdrawal intent ${intentId} is not awaiting review (status: ${intent.status}).`,
+      `Withdrawal intent ${intentId} is not awaiting review (status: ${existing.status}).`,
     );
   }
 
   const { data: payoutMethod } = await supabase
     .from("payout_methods")
     .select("*")
-    .eq("id", intent.payout_method_id)
+    .eq("id", claimed.payout_method_id)
     .maybeSingle();
   if (!payoutMethod) {
+    // Claim already succeeded (status='pending') -- must resolve this one
+    // way or another rather than leaving it stuck at 'pending' with no
+    // provider_ref, which would also block the wallet's active-withdrawal
+    // slot indefinitely (uq_payment_intents_one_active_withdrawal_per_wallet).
+    await supabase.from("payment_intents").update({ status: "failed" }).eq(
+      "id",
+      intentId,
+    );
+    await reverseWithdrawalHold(
+      claimed.wallet_id,
+      claimed.amount_cents,
+      "Payout method no longer exists",
+      `${claimed.idempotency_key}-review-approve-failed`,
+    );
     throw new Error(
-      `Payout method ${intent.payout_method_id} no longer exists.`,
+      `Payout method ${claimed.payout_method_id} no longer exists.`,
     );
   }
 
-  const provider = await getActiveProvider();
-  const transfer = await provider.initiateTransfer({
-    amountCents: intent.amount_cents,
-    currency: "NGN",
-    recipientCode: payoutMethod.recipient_code,
-    reason: "ChampionsStake withdrawal (reviewed)",
-    idempotencyKey: intent.idempotency_key,
-  });
+  try {
+    const provider = await getActiveProvider();
+    const transfer = await provider.initiateTransfer({
+      amountCents: claimed.amount_cents,
+      currency: "NGN",
+      recipientCode: payoutMethod.recipient_code,
+      reason: "ChampionsStake withdrawal (reviewed)",
+      idempotencyKey: claimed.idempotency_key,
+    });
 
-  await supabase
-    .from("payment_intents")
-    .update({ status: "pending", provider_ref: transfer.providerRef })
-    .eq("id", intentId);
+    await supabase
+      .from("payment_intents")
+      .update({ provider_ref: transfer.providerRef })
+      .eq("id", intentId);
 
-  await recordAudit({
-    actorId: adminId,
-    actorType: "administrator",
-    action: "WithdrawalReviewApproved",
-    category: "financial",
-    targetTable: "payment_intents",
-    targetId: intentId,
-    metadata: { providerRef: transfer.providerRef },
-  });
+    await recordAudit({
+      actorId: adminId,
+      actorType: "administrator",
+      action: "WithdrawalReviewApproved",
+      category: "financial",
+      targetTable: "payment_intents",
+      targetId: intentId,
+      metadata: { providerRef: transfer.providerRef },
+    });
 
-  return { providerRef: transfer.providerRef };
+    return { providerRef: transfer.providerRef };
+  } catch (err) {
+    // Same reasoning as requestWithdrawal's own catch: the claim already
+    // moved this row to 'pending' -- a failure here must not leave it
+    // stuck there.
+    await supabase.from("payment_intents").update({ status: "failed" }).eq(
+      "id",
+      intentId,
+    );
+    await reverseWithdrawalHold(
+      claimed.wallet_id,
+      claimed.amount_cents,
+      "Provider transfer initiation failed after review approval",
+      `${claimed.idempotency_key}-review-approve-failed`,
+    );
+    throw err;
+  }
 }
 
 /**
@@ -368,32 +460,45 @@ export async function rejectHeldWithdrawal(
   reason: string,
 ): Promise<void> {
   const supabase = getServiceRoleClient();
-  const { data: intent } = await supabase
+
+  // Hostile-review fix: same atomic-claim reasoning as approveHeldWithdrawal
+  // -- without this, a reject racing a concurrent approve could both read
+  // status='pending_review', and the reject could reverse a hold whose
+  // funds the approve had already sent to the payment provider.
+  const { data: claimed, error: claimError } = await supabase
     .from("payment_intents")
-    .select("*")
+    .update({ status: "failed" })
     .eq("id", intentId)
     .eq("kind", "withdrawal")
+    .eq("status", "pending_review")
+    .select("*")
     .maybeSingle();
 
-  if (!intent) {
-    throw new ValidationError(`Withdrawal intent ${intentId} not found.`);
+  if (claimError) {
+    throw new Error(
+      `Failed to claim withdrawal intent ${intentId}: ${claimError.message}`,
+    );
   }
-  if (intent.status !== "pending_review") {
+  if (!claimed) {
+    const { data: existing } = await supabase
+      .from("payment_intents")
+      .select("status")
+      .eq("id", intentId)
+      .eq("kind", "withdrawal")
+      .maybeSingle();
+    if (!existing) {
+      throw new ValidationError(`Withdrawal intent ${intentId} not found.`);
+    }
     throw new ConflictError(
-      `Withdrawal intent ${intentId} is not awaiting review (status: ${intent.status}).`,
+      `Withdrawal intent ${intentId} is not awaiting review (status: ${existing.status}).`,
     );
   }
 
   await reverseWithdrawalHold(
-    intent.wallet_id,
-    intent.amount_cents,
+    claimed.wallet_id,
+    claimed.amount_cents,
     `Rejected by administrator: ${reason}`,
-    `${intent.idempotency_key}-review-reject`,
-  );
-
-  await supabase.from("payment_intents").update({ status: "failed" }).eq(
-    "id",
-    intentId,
+    `${claimed.idempotency_key}-review-reject`,
   );
 
   await recordAudit({
