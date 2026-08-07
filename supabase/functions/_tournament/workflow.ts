@@ -33,6 +33,9 @@ import {
 import { recordAudit } from "../_shared/audit/index.ts";
 import { emit } from "../_shared/events/index.ts";
 import { lockToEscrow, releaseFromEscrow } from "../_wallet/transfer.ts";
+import { postBalancedEntries } from "../_wallet/ledger.ts";
+import { recordEscrowRelease } from "../_wallet/escrow-accounts.ts";
+import type { LedgerLeg } from "../_wallet/types.ts";
 import { getWalletIdForUser } from "../_challenge/repository.ts";
 import {
   completeChallenge,
@@ -652,23 +655,150 @@ export async function completeRound(
   return { finalRoundReached: false };
 }
 
+/** Only these placements can be automatically resolved from bracket data:
+ * 1st (final round winner), 2nd (final round loser), 3rd (semifinal
+ * losers, tied and split evenly — standard bracket convention when there's
+ * no third-place playoff match, which this bracket engine doesn't run).
+ * A payout_structure naming any other placement can't be safely resolved
+ * without guessing, so triggerPrizeDistribution refuses to run rather
+ * than silently mis-paying. */
+const SUPPORTED_PAYOUT_PLACEMENTS = new Set(["1", "2", "3"]);
+
 /**
- * Prize distribution TRIGGER only — per this phase's explicit "do not move
- * money directly, trigger Escrow/Wallet events only" instruction. This
- * emits the event and moves the tournament to 'completed'; the ACTUAL
- * releaseFromEscrow calls distributing the prize pool per
- * tournaments.payout_structure are intentionally left to a payout
- * coordinator that reacts to PrizeDistributionTriggered — keeping this
- * function's job strictly "recognize the tournament is over," not "move
- * the money," which stays WALLET-001's job even here.
+ * Pure (no I/O) payout-share calculation, extracted so this financial math
+ * is directly unit-testable without a database connection — see
+ * workflow.test.ts. Floors at every step (never rounds) so the returned
+ * shares can never sum to more than totalPoolCents: any shortfall (from
+ * flooring, from a tied placement's cents not dividing evenly, or from
+ * payout_structure percentages summing below 100%) is the caller's
+ * responsibility to route to platform_fee_revenue. Rounding UP anywhere
+ * here could produce credits exceeding what was actually locked in escrow,
+ * which has no valid ledger leg to source it from — postBalancedEntries'
+ * debit=credit balance check exists precisely to catch that class of bug,
+ * so this function is written to never trigger it.
+ */
+export function computePayoutShares(
+  totalPoolCents: number,
+  payoutStructure: Record<string, number>,
+  placementWinners: Record<string, string[]>,
+): { winnerId: string; amountCents: number }[] {
+  const shares: { winnerId: string; amountCents: number }[] = [];
+
+  for (const [placement, percent] of Object.entries(payoutStructure)) {
+    const winners = placementWinners[placement] ?? [];
+    if (winners.length === 0) continue;
+
+    const shareCents = Math.floor((totalPoolCents * percent) / 100);
+    const perWinnerCents = Math.floor(shareCents / winners.length);
+    if (perWinnerCents <= 0) continue;
+
+    for (const winnerId of winners) {
+      shares.push({ winnerId, amountCents: perWinnerCents });
+    }
+  }
+
+  return shares;
+}
+
+/** Derives 1st/2nd/3rd place from the completed bracket. Only correct once
+ * the tournament has actually reached prize_distribution (i.e. completeRound
+ * has already recorded the final match's result and marked the tournament's
+ * final round 'completed') -- callers must check status first. */
+async function getFinalStandings(tournamentId: string): Promise<{
+  championId: string;
+  runnerUpId: string;
+  semifinalLoserIds: string[];
+}> {
+  const finalRound = await getCurrentRound(tournamentId);
+  const finalMatches = await listMatchesForRound(finalRound.id);
+  const finalMatch = finalMatches.find((m) =>
+    m.challenges?.winner_submitted_by
+  );
+
+  if (!finalMatch?.challenges) {
+    throw new Error(
+      `Tournament ${tournamentId}'s final round has no resolved match to determine standings from.`,
+    );
+  }
+
+  const championId = finalMatch.challenges.winner_submitted_by as string;
+  const runnerUpId = championId === finalMatch.challenges.creator_id
+    ? finalMatch.challenges.opponent_id
+    : finalMatch.challenges.creator_id;
+
+  if (!runnerUpId) {
+    throw new Error(
+      `Tournament ${tournamentId}'s final match is missing an opponent — cannot determine a runner-up.`,
+    );
+  }
+
+  const semifinalLoserIds: string[] = [];
+  if (finalRound.round_number > 1) {
+    const supabase = getServiceRoleClient();
+    const { data: semifinalRound } = await supabase
+      .from("tournament_rounds")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .eq("round_number", finalRound.round_number - 1)
+      .maybeSingle();
+
+    if (semifinalRound) {
+      const semifinalMatches = await listMatchesForRound(semifinalRound.id);
+      for (const match of semifinalMatches) {
+        if (!match.challenges?.winner_submitted_by) continue;
+        const winnerId = match.challenges.winner_submitted_by;
+        const loserId = winnerId === match.challenges.creator_id
+          ? match.challenges.opponent_id
+          : match.challenges.creator_id;
+        if (loserId) semifinalLoserIds.push(loserId);
+      }
+    }
+  }
+
+  return { championId, runnerUpId, semifinalLoserIds };
+}
+
+/**
+ * Prize distribution: releases every remaining registrant's locked entry
+ * fee (Business Rules §5: "on final match completion, prize pool
+ * distributed... uses the same releaseEscrow primitive") and credits it to
+ * the placement winners per tournaments.payout_structure, in ONE balanced
+ * ledger transaction (N debit legs, one per registrant's escrowed stake; up
+ * to M credit legs, one per placement winner; any rounding remainder or
+ * payout_structure shortfall below 100% goes to platform_fee_revenue).
+ *
+ * A single postBalancedEntries call (rather than one releaseFromEscrow per
+ * registrant) is used because tournament escrow is POOLED across every
+ * registrant's own wallet (unlike a 1v1 challenge's simple loser-pays-
+ * winner pair) — releaseFromEscrow's one-from/one-to signature doesn't fit
+ * a many-payers-to-few-winners settlement, but it uses the exact same
+ * underlying primitive (postBalancedEntries, in ledger.ts) that
+ * releaseFromEscrow itself calls, and this function performs the matching
+ * escrow_accounts/escrow_transactions bookkeeping releaseFromEscrow would
+ * have done, via the same recordEscrowRelease helper.
+ *
+ * Previously (before this Phase 6 fix), triggerPrizeDistribution only
+ * emitted an event and moved the tournament to 'completed' -- no code
+ * anywhere actually paid tournament winners. Confirmed by grep before this
+ * fix: zero consumers of the "PrizeDistributionTriggered" event existed.
  */
 export async function triggerPrizeDistribution(
   tournamentId: string,
-): Promise<void> {
+): Promise<{ totalDistributedCents: number }> {
   const tournament = await getTournamentOrThrow(tournamentId);
   if (tournament.status !== "prize_distribution") {
     throw new ConflictError(
       `Tournament ${tournamentId} is not awaiting prize distribution (status: ${tournament.status}).`,
+    );
+  }
+
+  const unsupportedPlacements = Object.keys(tournament.payoutStructure)
+    .filter((placement) => !SUPPORTED_PAYOUT_PLACEMENTS.has(placement));
+  if (unsupportedPlacements.length > 0) {
+    throw new Error(
+      `Tournament ${tournamentId}'s payout_structure names placement(s) [${
+        unsupportedPlacements.join(", ")
+      }] that cannot be automatically resolved from bracket data (only 1st/2nd/3rd-tied are supported) — distribute manually.`,
     );
   }
 
@@ -685,21 +815,122 @@ export async function triggerPrizeDistribution(
     },
   });
   await emit({
-    type: "TournamentStarted",
-    payload: {
-      tournamentId,
-      event: "PrizeDistributionTriggered",
-      payoutStructure: tournament.payoutStructure,
-    },
+    type: "TournamentPrizeDistributionTriggered",
+    payload: { tournamentId, payoutStructure: tournament.payoutStructure },
     emittedBy: "tournament-complete",
   });
 
+  let totalDistributedCents = 0;
+
+  if (tournament.entryFeeCents > 0) {
+    const registrations = await listRegistrations(tournamentId);
+    if (registrations.length === 0) {
+      throw new Error(
+        `Tournament ${tournamentId} has a positive entry fee but no registrations to distribute a prize pool from.`,
+      );
+    }
+
+    const { championId, runnerUpId, semifinalLoserIds } =
+      await getFinalStandings(tournamentId);
+    const placementWinners: Record<string, string[]> = {
+      "1": [championId],
+      "2": [runnerUpId],
+      "3": semifinalLoserIds,
+    };
+
+    const totalPoolCents = registrations.length * tournament.entryFeeCents;
+    const legs: LedgerLeg[] = [];
+
+    for (const registration of registrations) {
+      const walletId = await getWalletIdForUser(registration.userId);
+      legs.push({
+        walletId,
+        accountType: "escrowed",
+        direction: "debit",
+        amountCents: tournament.entryFeeCents,
+      });
+    }
+
+    const shares = computePayoutShares(
+      totalPoolCents,
+      tournament.payoutStructure,
+      placementWinners,
+    );
+    for (const share of shares) {
+      const winnerWalletId = await getWalletIdForUser(share.winnerId);
+      legs.push({
+        walletId: winnerWalletId,
+        accountType: "available",
+        direction: "credit",
+        amountCents: share.amountCents,
+      });
+      totalDistributedCents += share.amountCents;
+    }
+
+    if (totalDistributedCents < totalPoolCents) {
+      legs.push({
+        walletId: null,
+        accountType: "platform_fee_revenue",
+        direction: "credit",
+        amountCents: totalPoolCents - totalDistributedCents,
+      });
+    }
+
+    const result = await postBalancedEntries({
+      type: "payout",
+      legs,
+      initiatedBy: null,
+      relatedEntity: { table: "tournaments", id: tournamentId },
+      releaseReason: "mutual_release",
+    });
+
+    const championWalletId = await getWalletIdForUser(championId);
+    for (let i = 0; i < registrations.length; i++) {
+      await recordEscrowRelease(
+        { table: "tournaments", id: tournamentId },
+        result.transactionId,
+        tournament.entryFeeCents,
+        null,
+        "mutual_release",
+        // Pooled multi-winner payout has no single natural "released to"
+        // wallet for this per-registrant leg's summary field -- the
+        // champion's wallet is used as the representative recipient
+        // (cosmetic only; escrow_transactions plus wallet_ledger remain
+        // the accurate, complete per-leg record of who actually got paid).
+        championWalletId,
+      );
+    }
+
+    await recordAudit({
+      actorId: null,
+      actorType: "system",
+      action: "TournamentPrizesDistributed",
+      category: "financial",
+      targetTable: "tournaments",
+      targetId: tournamentId,
+      metadata: {
+        total_pool_cents: totalPoolCents,
+        total_distributed_cents: totalDistributedCents,
+        champion_id: championId,
+        runner_up_id: runnerUpId,
+        semifinal_loser_ids: semifinalLoserIds,
+      },
+    });
+    await emit({
+      type: "TournamentPrizesDistributed",
+      payload: { tournamentId, totalDistributedCents, championId, runnerUpId },
+      emittedBy: "tournament-complete",
+    });
+  }
+
   await updateTournamentStatus(tournamentId, "completed");
   await emit({
-    type: "TournamentStarted",
-    payload: { tournamentId, event: "TournamentCompleted" },
+    type: "TournamentCompleted",
+    payload: { tournamentId },
     emittedBy: "tournament-complete",
   });
+
+  return { totalDistributedCents };
 }
 
 /**
