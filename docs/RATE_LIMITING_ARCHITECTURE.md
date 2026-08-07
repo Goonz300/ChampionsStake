@@ -17,12 +17,17 @@ Why not unify them: the web app's login limiter's fail-open behavior, its exact 
 ## 2. Edge Function Limiter — Backend Selection
 
 ```
-enforceRateLimit(options) → getBackend()
-  UpstashBackend   if config.redis.isConfigured (UPSTASH_REDIS_URL + UPSTASH_REDIS_TOKEN)
-  PostgresFallback otherwise (domain_events, event_type='RateLimitProbe')
+enforceRateLimit(options) → incrementWithFallback(key, windowSeconds)
+  if config.redis.isConfigured:
+    try UpstashBackend.increment(...)
+    catch → log, fall through to PostgresFallbackBackend.increment(...)  [RUNTIME fallback]
+  else:
+    PostgresFallbackBackend.increment(...)                              [config-time fallback]
 ```
 
 Both implement the same `increment(key, windowSeconds): Promise<count>` contract. Neither requires a persistent connection — Upstash via its REST API, Postgres via the existing Supabase client — which is what makes genuine (not stubbed) Redis-backed limiting possible inside a stateless Deno Edge Function.
+
+**Hostile-review fix**: the backend choice used to be config-time-only (decided once by whether env vars were set, never revisited). Layer 2's global-default rate limit means every Edge Function request now goes through this path, so an uncaught Upstash failure would 500 the entire platform, not just a handful of explicitly rate-limited endpoints. `incrementWithFallback` now catches an Upstash failure and falls back to the Postgres backend for that single check, matching the brief's own "fallback to database if Redis unavailable" requirement as a genuine runtime behavior. Tradeoff: during an Upstash outage, the counted series for a given key briefly diverges (Postgres counts different underlying events than Redis was tracking) — favoring availability over perfectly continuous counting during the outage, consistent with every other fail-open decision in this phase.
 
 **Known inaccuracy, corrected here**: the module's own header comment previously claimed "sliding-window." The actual implementation (INCR + EXPIRE-on-first-increment) is a classic **fixed window**, which allows up to 2x the configured rate at a window boundary (e.g. a burst just before and just after the boundary). This was not silently left — it's flagged so a future phase can decide whether the boundary-burst tolerance matters enough to justify a genuine sliding-window or token-bucket rewrite for the highest-risk endpoints (login, MFA, withdrawal).
 

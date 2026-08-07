@@ -78,16 +78,46 @@ class PostgresFallbackBackend implements RateLimitBackend {
   }
 }
 
-function getBackend(): RateLimitBackend {
+/**
+ * Hostile-review fix: this used to be a config-time-only decision (pick
+ * Upstash if configured, else Postgres, once, with no runtime fallback).
+ * Layer 2's global-default rate limit (compose.ts) now puts EVERY Edge
+ * Function's request through this path, not just the ~17 functions that
+ * had an explicit rateLimit option before this phase -- which means an
+ * uncaught Upstash failure (network blip, Upstash outage) no longer
+ * degrades a handful of endpoints, it 500s the entire platform's Edge
+ * Function surface, since rate limiting runs before business logic in
+ * every request. The brief's own Layer 2 spec explicitly asks for
+ * "fallback to database if Redis unavailable" -- this now means a RUNTIME
+ * fallback (Upstash actually failing this call), not just a
+ * configuration-time absence of env vars.
+ */
+async function incrementWithFallback(
+  key: string,
+  windowSeconds: number,
+): Promise<number> {
   if (config.redis.isConfigured) {
-    return new UpstashBackend(config.redis.url, config.redis.token);
+    try {
+      return await new UpstashBackend(config.redis.url, config.redis.token)
+        .increment(key, windowSeconds);
+    } catch (err) {
+      console.error(
+        `Upstash rate-limit backend failed for key "${key}", falling back to Postgres for this check: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      // Falls through to the Postgres backend below rather than
+      // propagating -- a transient Redis outage must not take down every
+      // Edge Function request platform-wide.
+    }
+  } else {
+    console.warn(
+      "UPSTASH_REDIS_URL/UPSTASH_REDIS_TOKEN not configured — using the Postgres fallback rate-limit backend. " +
+        "This is fine for local development but not recommended for production high-frequency endpoints (Architecture §7).",
+    );
   }
 
-  console.warn(
-    "UPSTASH_REDIS_URL/UPSTASH_REDIS_TOKEN not configured — using the Postgres fallback rate-limit backend. " +
-      "This is fine for local development but not recommended for production high-frequency endpoints (Architecture §7).",
-  );
-  return new PostgresFallbackBackend();
+  return await new PostgresFallbackBackend().increment(key, windowSeconds);
 }
 
 export async function enforceRateLimit(
@@ -98,8 +128,7 @@ export async function enforceRateLimit(
   const maxRequests = options.maxRequests ??
     config.rateLimit.defaultMaxRequests;
 
-  const backend = getBackend();
-  const count = await backend.increment(options.key, windowSeconds);
+  const count = await incrementWithFallback(options.key, windowSeconds);
 
   if (count > maxRequests) {
     throw new RateLimitError(
