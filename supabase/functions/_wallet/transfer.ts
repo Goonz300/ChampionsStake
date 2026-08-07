@@ -475,11 +475,12 @@ export async function settleWithdrawal(
     metadata: { walletId, amountCents, provider, providerRef },
   });
   await emit({
-    type: "TransactionCompleted",
+    type: "WithdrawalSettled",
     payload: {
       walletId,
       transactionId: result.transactionId,
-      type: "withdrawal_settled",
+      amountCents,
+      provider,
     },
     emittedBy: "payment-webhook",
   });
@@ -521,11 +522,12 @@ export async function reverseWithdrawalHold(
     metadata: { walletId, amountCents, reason },
   });
   await emit({
-    type: "TransactionCompleted",
+    type: "WithdrawalReversed",
     payload: {
       walletId,
       transactionId: result.transactionId,
-      type: "withdrawal_reversed",
+      amountCents,
+      reason,
     },
     emittedBy: "payment-webhook",
   });

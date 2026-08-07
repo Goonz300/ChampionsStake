@@ -60,6 +60,21 @@ export type DomainEventType =
   | "BalanceChanged"
   | "TransactionCompleted"
   | "TransactionFailed"
+  // Phase 7 (AI-002) event-contract fix: settleWithdrawal/reverseWithdrawalHold
+  // previously emitted the generic "TransactionCompleted" type for both a
+  // successful settlement and a reversed (failed) withdrawal, distinguished
+  // only by an unread payload.type string -- the exact same mislabeled-emit
+  // shape already fixed once for challenge events (Phase 4) and once for
+  // tournament events (Phase 6). Trust Engine v2 is the first consumer that
+  // actually needs to dispatch on "did this withdrawal succeed or fail" by
+  // type, which is what surfaced it here.
+  | "WithdrawalSettled"
+  | "WithdrawalReversed"
+  // Phase 7 (AI-002): genuinely new signals, not previously emitted under
+  // any type.
+  | "TournamentNoShowRecorded"
+  | "ChargebackRecorded"
+  | "SanctionsScreeningBlocked"
   // Framework-level events, actually emitted by this phase's own code:
   | "RateLimitProbe";
 

@@ -26,6 +26,7 @@ import {
   listSanctionsBlocklist,
   removeFromSanctionsBlocklist,
 } from "../_payment/sanctions.ts";
+import { listChargebacks, recordChargeback } from "../_payment/chargebacks.ts";
 
 export const adminGetBalance = getBalance;
 export const adminFreezeWallet = freezeWallet;
@@ -35,6 +36,8 @@ export const adminRejectWithdrawal = rejectHeldWithdrawal;
 export const adminAddSanctionsBlocklistEntry = addToSanctionsBlocklist;
 export const adminRemoveSanctionsBlocklistEntry = removeFromSanctionsBlocklist;
 export const adminListSanctionsBlocklist = listSanctionsBlocklist;
+export const adminRecordChargeback = recordChargeback;
+export const adminListChargebacks = listChargebacks;
 
 /** Phase 6: withdrawals held for manual review (Layer "high-value
  * withdrawal" risk control) -- the admin queue this feeds. */

@@ -2,6 +2,7 @@
 
 import { assertAlmostEquals, assertEquals } from "@std/assert";
 import {
+  clampTrustScore,
   computeDisputeLossAdjustment,
   computeEloUpdate,
   expectedScore,
@@ -48,4 +49,23 @@ Deno.test("dispute loss adjustment is 1.5x a normal loss and never goes negative
 
   const nearZero = computeDisputeLossAdjustment(5, normalLoss);
   assertEquals(nearZero >= -5, true);
+});
+
+// Phase 7: clampTrustScore backs the non-pairwise fixed-delta adjustments
+// (withdrawal reliability, no-shows, chargebacks, sanctions hits).
+Deno.test("clampTrustScore passes through any value above the floor", () => {
+  assertEquals(clampTrustScore(1000), 1000);
+  assertEquals(clampTrustScore(1), 1);
+});
+
+Deno.test("clampTrustScore floors at 0, matching chk_profiles_trust_score_range", () => {
+  assertEquals(clampTrustScore(-50), 0);
+  assertEquals(clampTrustScore(0), 0);
+});
+
+Deno.test("clampTrustScore: a severe delta (chargeback/sanctions) on a low score never goes negative", () => {
+  const CHARGEBACK_DELTA = -80;
+  const SANCTIONS_BLOCK_DELTA = -100;
+  assertEquals(clampTrustScore(50 + CHARGEBACK_DELTA), 0);
+  assertEquals(clampTrustScore(50 + SANCTIONS_BLOCK_DELTA), 0);
 });

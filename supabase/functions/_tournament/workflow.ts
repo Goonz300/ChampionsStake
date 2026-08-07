@@ -310,6 +310,12 @@ export async function forfeitNoShows(
       .update({ forfeited: true })
       .eq("tournament_id", tournamentId)
       .eq("user_id", reg.userId);
+
+    await emit({
+      type: "TournamentNoShowRecorded",
+      payload: { tournamentId, userId: reg.userId },
+      emittedBy: "tournament-workflow",
+    });
   }
 
   return { forfeited: noShows.length };

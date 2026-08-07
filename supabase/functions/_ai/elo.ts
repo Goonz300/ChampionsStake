@@ -18,6 +18,17 @@ const DEFAULT_K_FACTOR = 32;
 const MIN_RATING = 0; // matches profiles.trust_score's chk_profiles_trust_score_range check (>= 0)
 
 /**
+ * Phase 7: shared clamp for the non-pairwise fixed-delta adjustments in
+ * trust-score.ts (withdrawal reliability, no-shows, chargebacks, sanctions
+ * hits) -- same floor as the Elo exchange above, extracted so both paths
+ * enforce chk_profiles_trust_score_range identically and the floor behavior
+ * is unit-testable in one place.
+ */
+export function clampTrustScore(value: number): number {
+  return Math.max(MIN_RATING, value);
+}
+
+/**
  * Standard Elo expected-score formula: probability the higher-rated player
  * "should" win, given both ratings.
  */

@@ -6,6 +6,7 @@
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
+import { emit } from "../_shared/events/index.ts";
 
 /** Lowercased, whitespace-collapsed, trimmed -- exact-match screening, not
  * fuzzy matching (a false negative here is a real risk, but so is a false
@@ -61,6 +62,16 @@ export async function assertNotSanctioned(
     targetTable: "profiles",
     targetId: userId,
     metadata: { context, reason: result.reason },
+  });
+
+  // Phase 7: promotes this from an audit-only signal (recordAudit above) to
+  // a real domain event so Trust Engine v2 can react to it -- a sanctions
+  // hit is a strongly negative, explainable trust signal, not just a
+  // compliance record.
+  await emit({
+    type: "SanctionsScreeningBlocked",
+    payload: { userId, context },
+    emittedBy: "sanctions-screening",
   });
 
   throw new Error(

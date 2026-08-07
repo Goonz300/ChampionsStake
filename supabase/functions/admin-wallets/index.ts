@@ -22,8 +22,10 @@ import {
   adminGetBalance,
   adminGetLedger,
   adminGetTransactions,
+  adminListChargebacks,
   adminListPendingReviewWithdrawals,
   adminListSanctionsBlocklist,
+  adminRecordChargeback,
   adminRejectWithdrawal,
   adminRemoveSanctionsBlocklistEntry,
   adminUnfreezeWallet,
@@ -37,6 +39,7 @@ const getQuerySchema = paginationQuerySchema.extend({
     "statement",
     "pending_review_withdrawals",
     "sanctions_blocklist",
+    "chargebacks",
   ]).default("balance"),
   userId: z.string().uuid().optional(),
   from: z.string().datetime({ offset: true }).optional(),
@@ -69,6 +72,15 @@ const postBodySchema = z.discriminatedUnion("action", [
     action: z.literal("remove_sanctions_blocklist_entry"),
     entryId: z.string().uuid(),
   }),
+  z.object({
+    action: z.literal("record_chargeback"),
+    userId: z.string().uuid(),
+    walletTransactionId: z.string().uuid().optional(),
+    provider: z.string().min(1),
+    providerReference: z.string().min(1),
+    amountCents: z.number().int().positive(),
+    reason: z.string().min(1),
+  }),
 ]);
 
 async function handleGet(ctx: EdgeContext): Promise<Response> {
@@ -82,6 +94,9 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
   }
   if (query.view === "sanctions_blocklist") {
     return successResponse(await adminListSanctionsBlocklist(query.limit));
+  }
+  if (query.view === "chargebacks") {
+    return successResponse(await adminListChargebacks(query.limit));
   }
 
   if (!query.userId) {
@@ -151,9 +166,21 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
     );
     return successResponse(result, { status: 201 });
   }
+  if (body.action === "remove_sanctions_blocklist_entry") {
+    await adminRemoveSanctionsBlocklistEntry(body.entryId, ctx.user!.id);
+    return successResponse({ removed: true });
+  }
 
-  await adminRemoveSanctionsBlocklistEntry(body.entryId, ctx.user!.id);
-  return successResponse({ removed: true });
+  const result = await adminRecordChargeback({
+    userId: body.userId,
+    walletTransactionId: body.walletTransactionId,
+    provider: body.provider,
+    providerReference: body.providerReference,
+    amountCents: body.amountCents,
+    reason: body.reason,
+    recordedBy: ctx.user!.id,
+  });
+  return successResponse(result, { status: 201 });
 }
 
 function handler(ctx: EdgeContext): Promise<Response> {
