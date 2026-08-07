@@ -30,7 +30,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { email, password, captchaToken } = parsed.data;
+  // Hostile-review fix: every rate-limit/lockout/CAPTCHA-trigger key in
+  // this route is keyed by `email` as a literal string, but email
+  // authentication is inherently case-insensitive (Supabase Auth/GoTrue
+  // normalizes it internally) -- without normalizing here too, an attacker
+  // could bypass progressive delay, the hard rate limit, lockout, and the
+  // CAPTCHA trigger entirely by rotating the casing of one target email on
+  // each attempt (User@x.com, USER@X.COM, user@X.com, ...), since each
+  // variant would maintain its own separate failure count while Supabase
+  // still authenticates all of them as the same account.
+  const email = parsed.data.email.trim().toLowerCase();
+  const { password, captchaToken } = parsed.data;
   const ipAddress = getClientIp(request);
   // NOTE on "Remember Me": Supabase's session cookie lifetime is governed by
   // the refresh token's own expiry (Architecture §8: 7 days), which is not

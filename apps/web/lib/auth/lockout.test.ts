@@ -8,7 +8,7 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { clearLockoutsForEmail, isAccountLocked, recordLockout, shouldLock } from "./lockout";
+import { isAccountLocked, recordLockout, shouldLock } from "./lockout";
 
 describe("isAccountLocked", () => {
   beforeEach(() => {
@@ -134,30 +134,5 @@ describe("recordLockout", () => {
     const lockedUntilMs = new Date(upsertArg.locked_until).getTime();
     expect(lockedUntilMs - before).toBeGreaterThan(55 * 60 * 1000);
     expect(lockedUntilMs - before).toBeLessThan(65 * 60 * 1000);
-  });
-});
-
-describe("clearLockoutsForEmail", () => {
-  it("deletes every lockout row for the email and audits the unlock", async () => {
-    const eq = vi.fn().mockResolvedValue({ error: null });
-    const del = vi.fn().mockReturnValue({ eq });
-    const rpc = vi.fn().mockResolvedValue({ error: null });
-
-    vi.mocked(createServiceRoleClient).mockReturnValue({
-      from: vi.fn().mockReturnValue({ delete: del }),
-      rpc,
-    } as never);
-
-    await clearLockoutsForEmail("player@example.com", "admin-1");
-
-    expect(eq).toHaveBeenCalledWith("email", "player@example.com");
-    expect(rpc).toHaveBeenCalledWith(
-      "fn_write_audit_log",
-      expect.objectContaining({
-        p_action: "AccountUnlocked",
-        p_actor_id: "admin-1",
-        p_actor_type: "administrator",
-      }),
-    );
   });
 });

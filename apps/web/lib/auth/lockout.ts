@@ -104,23 +104,10 @@ export function shouldLock(recentFailureCount: number): boolean {
   return recentFailureCount >= getLockoutConfig().failuresToLock;
 }
 
-/**
- * Administrator unlock (Layer 16). Clears every lock for this email across
- * all IPs -- an admin unlocking "this user's account" should not require
- * knowing which IP triggered the lock.
- */
-export async function clearLockoutsForEmail(email: string, unlockedBy: string): Promise<void> {
-  const supabase = createServiceRoleClient();
-
-  await supabase.from("login_lockouts").delete().eq("email", email);
-
-  await supabase.rpc("fn_write_audit_log", {
-    p_actor_id: unlockedBy,
-    p_actor_type: "administrator",
-    p_action: "AccountUnlocked",
-    p_category: "auth",
-    p_target_table: "profiles",
-    p_target_id: email,
-    p_metadata: { email },
-  });
-}
+// Administrator unlock (Layer 16) is implemented on the Edge/admin side
+// (supabase/functions/_admin/security.ts's unlockAccount), reachable via
+// /api/admin/security -- not here. An earlier version of this file also
+// had a web-side clearLockoutsForEmail, but nothing ever called it (the
+// admin-security Edge Function became the actual wired path); removed as
+// dead code during this phase's hostile review rather than left as an
+// unused, never-exercised duplicate of the same delete-and-audit logic.

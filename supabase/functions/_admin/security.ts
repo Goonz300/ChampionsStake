@@ -37,18 +37,22 @@ export async function listLockedAccounts(
   return data ?? [];
 }
 
-/** Deletes every lockout row for the email (all source IPs) -- mirrors
- * apps/web/lib/auth/lockout.ts's clearLockoutsForEmail exactly, on the
- * Edge/admin side rather than the Next.js login-route side; the two
- * runtimes are deliberately separate compilation contexts (see the root
- * package.json's own description) and cannot share a module, the same
- * reason security/client-ip.ts exists in both places. */
+/** Deletes every lockout row for the email (all source IPs). login/route.ts
+ * normalizes email to lowercase before ever writing a login_lockouts row
+ * (hostile-review fix -- see its own comment for why: rate limiting/
+ * lockout/CAPTCHA are all keyed by email, and email auth is inherently
+ * case-insensitive, so an unnormalized key would have been bypassable by
+ * rotating casing), so every row here is already lowercase -- normalizing
+ * the admin's input the same way here too means an unlock actually matches
+ * regardless of how the admin typed the email, rather than silently
+ * deleting zero rows on a casing mismatch. */
 export async function unlockAccount(
   email: string,
   adminId: string,
 ): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
   const supabase = getServiceRoleClient();
-  await supabase.from("login_lockouts").delete().eq("email", email);
+  await supabase.from("login_lockouts").delete().eq("email", normalizedEmail);
 
   await recordAudit({
     actorId: adminId,
