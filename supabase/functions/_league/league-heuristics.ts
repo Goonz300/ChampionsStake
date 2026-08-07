@@ -88,6 +88,37 @@ export interface MatchOutcome {
  * convention (football-style); a business could configure a different
  * scheme, but this is a sane, documented default, not an invented rule
  * with no basis. */
+export interface SeasonRewardAssignment {
+  participantId: string;
+  rank: number;
+  amountCents: number;
+}
+
+/**
+ * Maps a points-ranked participant list to reward amounts by finishing
+ * rank (Phase 8 M4). Pure -- season-service.ts resolves the wallet/payout
+ * side effects, this only decides who gets how much. Ranks not present in
+ * rewardStructure, or with a non-positive amount, are skipped entirely
+ * (not paid $0 -- simply not included).
+ */
+export function computeSeasonRewards(
+  rankedParticipantIds: string[],
+  rewardStructure: Record<string, number>,
+): SeasonRewardAssignment[] {
+  const assignments: SeasonRewardAssignment[] = [];
+  for (let i = 0; i < rankedParticipantIds.length; i++) {
+    const rank = i + 1;
+    const amountCents = rewardStructure[String(rank)];
+    if (!amountCents || amountCents <= 0) continue;
+    assignments.push({
+      participantId: rankedParticipantIds[i],
+      rank,
+      amountCents,
+    });
+  }
+  return assignments;
+}
+
 export function computeStandingPointsDelta(outcome: MatchOutcome): {
   points: number;
   won: boolean;

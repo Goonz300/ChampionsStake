@@ -25,7 +25,8 @@ export type TransactionType =
   | "bonus_debit"
   | "tournament_entry"
   | "tournament_prize"
-  | "chargeback";
+  | "chargeback"
+  | "season_reward";
 
 export type TransactionStatus =
   | "pending"

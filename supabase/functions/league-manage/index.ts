@@ -27,6 +27,11 @@ import {
   createLeague,
   getLeagueStatistics,
 } from "../_league/service.ts";
+import {
+  archiveSeason,
+  endSeason,
+  startSeason,
+} from "../_league/season-service.ts";
 
 const getQuerySchema = z.object({
   view: z.enum([
@@ -57,6 +62,25 @@ const postBodySchema = z.discriminatedUnion("action", [
     leagueId: z.string().uuid(),
     name: z.string().min(1).max(100),
     tier: z.number().int().positive(),
+  }),
+  z.object({
+    action: z.literal("start_season"),
+    leagueId: z.string().uuid(),
+    name: z.string().min(1).max(100),
+    startsAt: z.string().datetime({ offset: true }).nullable().default(null),
+    endsAt: z.string().datetime({ offset: true }).nullable().default(null),
+    initialAssignments: z.array(z.object({
+      divisionId: z.string().uuid(),
+      userId: z.string().uuid().nullable().default(null),
+      teamId: z.string().uuid().nullable().default(null),
+    })).default([]),
+    rewardStructure: z.record(z.string(), z.number().int().positive())
+      .default({}),
+  }),
+  z.object({ action: z.literal("end_season"), seasonId: z.string().uuid() }),
+  z.object({
+    action: z.literal("archive_season"),
+    seasonId: z.string().uuid(),
   }),
 ]);
 
@@ -123,13 +147,32 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
     return successResponse(league, { status: 201 });
   }
 
-  const result = await createDivision(
-    userId,
-    body.leagueId,
-    body.name,
-    body.tier,
-  );
-  return successResponse(result, { status: 201 });
+  if (body.action === "create_division") {
+    const result = await createDivision(
+      userId,
+      body.leagueId,
+      body.name,
+      body.tier,
+    );
+    return successResponse(result, { status: 201 });
+  }
+  if (body.action === "start_season") {
+    const season = await startSeason(
+      userId,
+      body.leagueId,
+      body.name,
+      body.startsAt,
+      body.endsAt,
+      body.initialAssignments,
+      body.rewardStructure,
+    );
+    return successResponse(season, { status: 201 });
+  }
+  if (body.action === "end_season") {
+    return successResponse(await endSeason(userId, body.seasonId));
+  }
+
+  return successResponse(await archiveSeason(userId, body.seasonId));
 }
 
 function handler(ctx: EdgeContext): Promise<Response> {

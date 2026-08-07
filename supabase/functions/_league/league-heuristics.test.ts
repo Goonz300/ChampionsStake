@@ -3,6 +3,7 @@
 import { assertEquals } from "@std/assert";
 import {
   computePromotionRelegation,
+  computeSeasonRewards,
   computeStandingPointsDelta,
   type DivisionStanding,
 } from "./league-heuristics.ts";
@@ -75,6 +76,41 @@ Deno.test("computePromotionRelegation: ties are broken deterministically by part
   const moves2 = computePromotionRelegation([...standings].reverse(), 1, 0);
   assertEquals(moves1[0].participantId, moves2[0].participantId);
   assertEquals(moves1[0].participantId, "a"); // alphabetically first on a points tie
+});
+
+Deno.test("computeSeasonRewards: assigns amounts by finishing rank", () => {
+  const assignments = computeSeasonRewards(["a", "b", "c"], {
+    "1": 50000,
+    "2": 30000,
+  });
+  assertEquals(assignments.length, 2);
+  assertEquals(assignments[0], {
+    participantId: "a",
+    rank: 1,
+    amountCents: 50000,
+  });
+  assertEquals(assignments[1], {
+    participantId: "b",
+    rank: 2,
+    amountCents: 30000,
+  });
+});
+
+Deno.test("computeSeasonRewards: a rank with no configured amount is skipped, not paid $0", () => {
+  const assignments = computeSeasonRewards(["a", "b", "c"], { "1": 50000 });
+  assertEquals(assignments.length, 1);
+  assertEquals(assignments.some((a) => a.participantId === "b"), false);
+  assertEquals(assignments.some((a) => a.participantId === "c"), false);
+});
+
+Deno.test("computeSeasonRewards: an empty reward structure pays nobody", () => {
+  const assignments = computeSeasonRewards(["a", "b"], {});
+  assertEquals(assignments.length, 0);
+});
+
+Deno.test("computeSeasonRewards: a non-positive configured amount is treated as unpaid, not a negative debit", () => {
+  const assignments = computeSeasonRewards(["a"], { "1": -100 });
+  assertEquals(assignments.length, 0);
 });
 
 Deno.test("computeStandingPointsDelta: standard 3/1/0 scoring", () => {

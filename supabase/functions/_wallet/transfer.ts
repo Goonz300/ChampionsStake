@@ -249,11 +249,14 @@ export async function releaseFromEscrow(
   return result;
 }
 
-/** Platform-funded credit into a wallet (e.g. a promotional bonus). */
+/** Platform-funded credit into a wallet (e.g. a promotional bonus, or a
+ * Phase 8 season reward -- leagues have no entry-fee pool to pay a reward
+ * from, so it's necessarily platform-funded like a bonus, not player-funded
+ * like a tournament prize). */
 export function platformToWallet(
   toWalletId: string,
   amountCents: number,
-  type: "bonus_credit" | "tournament_prize",
+  type: "bonus_credit" | "tournament_prize" | "season_reward",
   initiatedBy: string | null,
   idempotencyKey?: string,
 ): Promise<TransferResult> {
