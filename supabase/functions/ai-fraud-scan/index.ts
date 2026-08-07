@@ -22,6 +22,7 @@ import { timingSafeEqual } from "../_shared/security/signed-requests.ts";
 import {
   listFraudFlags,
   reviewFlag,
+  sweepFraudIntelligence,
   sweepRecentChallenges,
 } from "../_ai/fraud-detection.ts";
 
@@ -44,7 +45,11 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       if (!ctx.profile) throw new AuthenticationError("Not authenticated.");
       requireModerator(ctx.profile);
     }
-    return successResponse(await sweepRecentChallenges());
+    const [challengeSweep, intelligenceSweep] = await Promise.all([
+      sweepRecentChallenges(),
+      sweepFraudIntelligence(),
+    ]);
+    return successResponse({ challengeSweep, intelligenceSweep });
   }
 
   requireModerator(ctx.profile!);
