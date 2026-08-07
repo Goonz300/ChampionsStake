@@ -15,9 +15,11 @@ import { ValidationError } from "../_shared/errors/index.ts";
 import { getQueue } from "../_moderator/repository.ts";
 import { getCaseDetail, getEvidenceList } from "../_moderator/cases.ts";
 import { moderatorAnalytics } from "../_moderator/analytics.ts";
+import { generateModerationSuggestion } from "../_ai/moderation-assistant.ts";
 
 const querySchema = z.object({
-  view: z.enum(["queue", "case", "evidence", "analytics"]).default("queue"),
+  view: z.enum(["queue", "case", "evidence", "analytics", "ai_suggestion"])
+    .default("queue"),
   disputeId: z.string().uuid().optional(),
   days: z.coerce.number().int().positive().max(365).default(30),
 });
@@ -40,6 +42,14 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   if (query.view === "case") {
     return successResponse(
       await getCaseDetail(query.disputeId, ctx.user!.id, isAdmin),
+    );
+  }
+  if (query.view === "ai_suggestion") {
+    // Generated on-demand (not just read from the sweep's last run) so a
+    // moderator opening a case always sees a suggestion reflecting the
+    // CURRENT risk/fraud-flag state, not a potentially stale scheduled one.
+    return successResponse(
+      await generateModerationSuggestion(query.disputeId),
     );
   }
   return successResponse(await getEvidenceList(query.disputeId));
