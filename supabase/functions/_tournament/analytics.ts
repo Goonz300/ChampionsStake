@@ -161,13 +161,16 @@ export async function getTournamentEcosystemHealth(
   const completedCount = rows.filter((t) => t.status === "completed").length;
   const cancelledCount = rows.filter((t) => t.status === "cancelled").length;
 
+  // Single batched query for every tournament in the window rather than one
+  // count query per tournament (performance review finding: could be
+  // hundreds of round-trips for a busy 30-day window).
   let totalParticipation = 0;
-  for (const t of rows) {
-    const { count } = await supabase
+  if (rows.length > 0) {
+    const { data: registrations } = await supabase
       .from("tournament_registrations")
-      .select("id", { count: "exact", head: true })
-      .eq("tournament_id", t.id);
-    totalParticipation += count ?? 0;
+      .select("tournament_id")
+      .in("tournament_id", rows.map((t) => t.id));
+    totalParticipation = (registrations ?? []).length;
   }
 
   return {

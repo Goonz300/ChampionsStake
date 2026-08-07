@@ -366,8 +366,15 @@ export async function forfeitNoShows(
       payload: { tournamentId, userId: reg.userId },
       emittedBy: "tournament-workflow",
     });
+  }
+
+  // One broadcast for the whole batch, not one per no-show registrant --
+  // performance review finding: for a large bracket this could otherwise
+  // fan out into hundreds of messages on the same tournament:{id} channel
+  // in a single call.
+  if (noShows.length > 0) {
     await broadcastTournamentActivity(tournamentId, "no_show", {
-      userId: reg.userId,
+      userIds: noShows.map((r) => r.userId),
     });
   }
 

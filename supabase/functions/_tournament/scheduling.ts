@@ -248,16 +248,30 @@ export async function sweepTournamentReminders(): Promise<
     .gt("starts_at", now)
     .lte("starts_at", windowEnd);
 
+  // Single batched idempotency check instead of one domain_events query per
+  // tournament (performance review finding). A prior reminder for any
+  // currently-upcoming tournament can only have been emitted within the
+  // last REMINDER_WINDOW_HOURS: once a tournament's starts_at passes (or
+  // its status advances past check_in), it drops out of the `upcoming`
+  // filter above and is never reconsidered, so this lookback fully covers
+  // every tournament this sweep tick could otherwise re-remind.
+  const lookback = new Date(
+    Date.now() - REMINDER_WINDOW_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: recentReminders } = await supabase
+    .from("domain_events")
+    .select("payload")
+    .eq("event_type", "TournamentReminderDue")
+    .gte("created_at", lookback);
+  const alreadyReminded = new Set(
+    (recentReminders ?? [])
+      .map((e) => (e.payload as Record<string, unknown> | null)?.tournamentId)
+      .filter((id): id is string => typeof id === "string"),
+  );
+
   let remindersSent = 0;
   for (const t of upcoming ?? []) {
-    const { data: existingReminder } = await supabase
-      .from("domain_events")
-      .select("id")
-      .eq("event_type", "TournamentReminderDue")
-      .contains("payload", { tournamentId: t.id })
-      .limit(1)
-      .maybeSingle();
-    if (existingReminder) continue;
+    if (alreadyReminded.has(t.id)) continue;
 
     await emit({
       type: "TournamentReminderDue",
