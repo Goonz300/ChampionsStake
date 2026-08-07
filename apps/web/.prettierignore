@@ -1,0 +1,8 @@
+# Phase 8: no .prettierignore existed before -- `prettier --check .` walks
+# into build output (.next/) once it exists locally, which is never source
+# code and should never be formatted/linted. Discovered the same way as
+# eslint.config.mjs's matching ignores entry: a local `npm run build`
+# needed to validate a change left `.next/` behind for the next
+# `npm run format:check` to trip over.
+.next/
+node_modules/

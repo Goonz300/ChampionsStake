@@ -38,6 +38,14 @@ const compat = new FlatCompat({
  * config exclusion that has to be independently verified every time.
  */
 const eslintConfig = [
+  // Phase 8: raw `eslint .` (this repo's lint script) does not get
+  // Next.js's built-in .next/ exclusion the way `next lint` would --
+  // that's only applied by the Next CLI wrapper, not by loading
+  // next/core-web-vitals as a flat-config preset. Discovered when a local
+  // `npm run build` (needed to validate a change) left a .next/ directory
+  // behind and the next `npm run lint` tried to lint Next's own generated
+  // type-checking shims inside it.
+  { ignores: [".next/**"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     files: ["**/*.ts", "**/*.tsx"],
