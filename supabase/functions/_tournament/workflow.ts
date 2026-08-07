@@ -59,6 +59,7 @@ import {
   updateTournamentStatus,
 } from "./repository.ts";
 import { computeNextRound, getBracketGenerator } from "./bracket.ts";
+import { broadcastTournamentActivity } from "../_realtime/spectator.ts";
 
 export const createTournamentSchema = z.object({
   gameId: z.string().uuid(),
@@ -364,6 +365,9 @@ export async function forfeitNoShows(
       type: "TournamentNoShowRecorded",
       payload: { tournamentId, userId: reg.userId },
       emittedBy: "tournament-workflow",
+    });
+    await broadcastTournamentActivity(tournamentId, "no_show", {
+      userId: reg.userId,
     });
   }
 
@@ -682,6 +686,10 @@ export async function completeRound(
     payload: { tournamentId, roundId: round.id },
     emittedBy: "tournament-complete-round",
   });
+  await broadcastTournamentActivity(tournamentId, "round_completed", {
+    roundId: round.id,
+    roundNumber: round.round_number,
+  });
 
   if (results.length <= 1) {
     // The final just completed.
@@ -976,9 +984,14 @@ export async function triggerPrizeDistribution(
       payload: { tournamentId, totalDistributedCents, championId, runnerUpId },
       emittedBy: "tournament-complete",
     });
+    await broadcastTournamentActivity(tournamentId, "prize_distributed", {
+      totalDistributedCents,
+      championId,
+    });
   }
 
   await updateTournamentStatus(tournamentId, "completed");
+  await broadcastTournamentActivity(tournamentId, "tournament_completed");
   await emit({
     type: "TournamentCompleted",
     payload: { tournamentId },

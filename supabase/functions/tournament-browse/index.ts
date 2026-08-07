@@ -13,11 +13,20 @@ import { successResponse } from "../_shared/response/index.ts";
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
 import { getClientIp } from "../_shared/security/client-ip.ts";
+import {
+  getMatchTimeline,
+  getTournamentActivityLog,
+} from "../_realtime/spectator.ts";
 
 const querySchema = z.object({
-  view: z.enum(["list", "bracket", "standings", "participants"]).default(
+  view: z.enum([
     "list",
-  ),
+    "bracket",
+    "standings",
+    "participants",
+    "match_timeline",
+    "activity",
+  ]).default("list"),
   tournamentId: z.string().uuid().optional(),
   gameId: z.string().uuid().optional(),
   status: z.string().optional(),
@@ -71,6 +80,13 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       .order("round_number", { ascending: true });
     if (error) throw new Error(error.message);
     return successResponse(data ?? []);
+  }
+
+  if (query.view === "match_timeline") {
+    return successResponse(await getMatchTimeline(query.tournamentId));
+  }
+  if (query.view === "activity") {
+    return successResponse(await getTournamentActivityLog(query.tournamentId));
   }
 
   if (query.view === "participants" || query.view === "standings") {
