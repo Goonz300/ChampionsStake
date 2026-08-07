@@ -1,0 +1,4 @@
+-- Rollback 0093: Tournament Format -- Swiss
+-- Postgres does not support removing enum values; same documented
+-- limitation as every prior enum-extension rollback in this repo
+-- (migrations 0080, 0084). Harmless no-op value if this rollback runs.
