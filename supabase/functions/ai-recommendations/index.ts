@@ -8,9 +8,16 @@ import {
 import { requirePlayer } from "../_shared/permissions/index.ts";
 import { validateQuery } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
-import { recommendOpponentChallenges } from "../_ai/recommendations.ts";
+import {
+  recommendFriends,
+  recommendMatchmakingOpponents,
+  recommendOpponentChallenges,
+  recommendTournaments,
+} from "../_ai/recommendations.ts";
 
 const querySchema = z.object({
+  view: z.enum(["challenges", "matchmaking", "friends", "tournaments"])
+    .default("challenges"),
   limit: z.coerce.number().int().positive().max(50).default(20),
 });
 
@@ -18,8 +25,23 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   requirePlayer(ctx.profile!);
   const url = new URL(ctx.request.url);
   const query = validateQuery(querySchema, url);
-  const results = await recommendOpponentChallenges(ctx.user!.id, query.limit);
-  return successResponse(results);
+  const userId = ctx.user!.id;
+
+  if (query.view === "matchmaking") {
+    return successResponse(
+      await recommendMatchmakingOpponents(userId, query.limit),
+    );
+  }
+  if (query.view === "friends") {
+    return successResponse(await recommendFriends(userId, query.limit));
+  }
+  if (query.view === "tournaments") {
+    return successResponse(await recommendTournaments(userId, query.limit));
+  }
+
+  return successResponse(
+    await recommendOpponentChallenges(userId, query.limit),
+  );
 }
 
 Deno.serve(
