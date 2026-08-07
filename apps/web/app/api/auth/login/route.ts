@@ -8,6 +8,7 @@ import { notifySecurityEvent } from "@/lib/auth/security-notifications";
 import { getClientIp } from "@/lib/security/client-ip";
 import { delay, getProgressiveDelayMs } from "@/lib/security/progressive-delay";
 import { isAccountLocked, recordLockout, shouldLock } from "@/lib/auth/lockout";
+import { shouldRequireCaptcha, verifyCaptcha } from "@/lib/security/captcha";
 
 /**
  * POST /api/auth/login
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { email, password } = parsed.data;
+  const { email, password, captchaToken } = parsed.data;
   const ipAddress = getClientIp(request);
   // NOTE on "Remember Me": Supabase's session cookie lifetime is governed by
   // the refresh token's own expiry (Architecture §8: 7 days), which is not
@@ -64,6 +65,24 @@ export async function POST(request: NextRequest) {
   // failure for this email+IP adds latency before this attempt is even
   // evaluated, independent of whether the hard limit has been reached yet.
   await delay(getProgressiveDelayMs(priorFailureCount));
+
+  // Layer 9: never required by default -- only once priorFailureCount
+  // crosses CAPTCHA_TRIGGER_AFTER_FAILURES, reusing the SAME count already
+  // computed above rather than a new query.
+  if (shouldRequireCaptcha(priorFailureCount)) {
+    const captchaOk = await verifyCaptcha(captchaToken, ipAddress);
+    if (!captchaOk) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "CAPTCHA_REQUIRED",
+            message: "Please complete the verification challenge to continue.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+  }
 
   if (await isLoginRateLimited(email, ipAddress)) {
     return NextResponse.json(

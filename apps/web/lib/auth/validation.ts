@@ -31,6 +31,11 @@ export const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),
   rememberMe: z.boolean().optional().default(false),
+  // Layer 9 (CAPTCHA): optional -- only required once the caller's recent
+  // failure count crosses CAPTCHA_TRIGGER_AFTER_FAILURES (see
+  // lib/security/captcha.ts). Omitted entirely when not yet triggered, so
+  // this is fully backward compatible with any client that doesn't send it.
+  captchaToken: z.string().optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
