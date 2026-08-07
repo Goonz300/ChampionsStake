@@ -15,6 +15,13 @@ import { successResponse } from "../_shared/response/index.ts";
 import { getSystemHealth } from "../_admin/system-health.ts";
 import { getDashboardMetrics } from "../_admin/dashboard.ts";
 import * as analytics from "../_admin/analytics.ts";
+import {
+  forecastFraud,
+  forecastRevenue,
+  moderatorWorkload,
+  platformHealth,
+  predictChurn,
+} from "../_ai/analytics-engine.ts";
 
 const querySchema = z.object({
   view: z
@@ -28,6 +35,12 @@ const querySchema = z.object({
       "escrow_stats",
       "retention",
       "disputes",
+      // Phase 7 (AI-007) additions:
+      "churn_prediction",
+      "revenue_forecast",
+      "fraud_forecast",
+      "moderator_workload",
+      "platform_health",
     ])
     .default("health"),
   days: z.coerce.number().int().positive().max(365).default(30),
@@ -57,6 +70,16 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       return successResponse(await analytics.retentionProxy());
     case "disputes":
       return successResponse(await analytics.disputeStatistics(query.days));
+    case "churn_prediction":
+      return successResponse(await predictChurn());
+    case "revenue_forecast":
+      return successResponse(await forecastRevenue(query.days));
+    case "fraud_forecast":
+      return successResponse(await forecastFraud());
+    case "moderator_workload":
+      return successResponse(await moderatorWorkload());
+    case "platform_health":
+      return successResponse({ score: await platformHealth() });
   }
 }
 
