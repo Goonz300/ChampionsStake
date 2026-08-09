@@ -345,9 +345,17 @@ export async function transferOwnership(
   }
 
   await withTransaction(async (sql) => {
+    // Hostile review finding (CRITICAL): this previously verified only that
+    // currentOwnerId was an ACTIVE MEMBER, not that they held role='owner'
+    // -- any regular member calling transfer_ownership with their own id as
+    // currentOwnerId could promote themselves to owner (and, via
+    // getTeamOwnerWalletId, redirect future team season-reward payouts to
+    // themselves), since team-manage/index.ts passes the caller's own JWT
+    // user id straight through as currentOwnerId with no prior role check.
     const ownerRows = await sql`
       select id from team_members
-      where team_id = ${teamId} and user_id = ${currentOwnerId} and left_at is null
+      where team_id = ${teamId} and user_id = ${currentOwnerId}
+        and left_at is null and role = 'owner'
       for update
     `;
     if (ownerRows.length === 0) {

@@ -14,6 +14,7 @@ import {
   computePlayerReputationScore,
   computeResponseFactor,
   computeTournamentReputationScore,
+  computeTournamentScaleFactor,
 } from "./reputation-heuristics.ts";
 
 const supabase = getServiceRoleClient();
@@ -200,14 +201,18 @@ export async function computeTournamentReputation(
   const forfeitRate = registrationCount
     ? (forfeitCount ?? 0) / registrationCount
     : 0;
-  const completedBonus = tournament.status === "completed" ? 40 : 0;
+  const scaleFactor = computeTournamentScaleFactor(registrationCount ?? 0);
+  const completedBonus = tournament.status === "completed"
+    ? 40 * scaleFactor
+    : 0;
 
   const factors = {
     status: tournament.status,
     registrationCount: registrationCount ?? 0,
     forfeitRate: Math.round(forfeitRate * 1000) / 1000,
     disputeRate: Math.round(disputeRate * 1000) / 1000,
-    completedBonus,
+    scaleFactor: Math.round(scaleFactor * 1000) / 1000,
+    completedBonus: Math.round(completedBonus * 100) / 100,
   };
 
   const score = computeTournamentReputationScore(

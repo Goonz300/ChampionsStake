@@ -67,8 +67,21 @@ export async function startSeason(
     })
     .select("*")
     .single();
-  if (error || !season) {
-    throw new Error(`Failed to create season: ${error?.message}`);
+  if (error) {
+    // Hostile review finding (Low): the SELECT above is a TOCTOU check, not
+    // a lock -- two concurrent start_season calls for the same league can
+    // both pass it. migration 0105's partial unique index
+    // (uq_seasons_one_active_per_league) makes the loser of that race fail
+    // here with 23505 instead of silently creating a second active season.
+    if (error.code === "23505") {
+      throw new ConflictError(
+        "This league already has an active season -- end it before starting a new one.",
+      );
+    }
+    throw new Error(`Failed to create season: ${error.message}`);
+  }
+  if (!season) {
+    throw new Error("Failed to create season: no row returned.");
   }
 
   if (initialAssignments.length > 0) {

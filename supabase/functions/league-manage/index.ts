@@ -6,7 +6,10 @@ import {
   type EdgeContext,
   withEdgeFunction,
 } from "../_shared/middleware/index.ts";
-import { requirePlayer } from "../_shared/permissions/index.ts";
+import {
+  requireOrganizer,
+  requirePlayer,
+} from "../_shared/permissions/index.ts";
 import {
   parseJsonBody,
   validateBody,
@@ -135,6 +138,20 @@ async function handleGet(ctx: EdgeContext): Promise<Response> {
 async function handlePost(ctx: EdgeContext): Promise<Response> {
   const body = validateBody(postBodySchema, await parseJsonBody(ctx.request));
   const userId = ctx.user!.id;
+
+  // Hostile review finding (CRITICAL): every action here either creates a
+  // league/division/season or ends one and pays out season_reward amounts
+  // (see _league/season-service.ts's endSeason -> platformToWallet, which
+  // credits a real spendable wallet balance with no admin approval step).
+  // This previously ran under the same requirePlayer gate as read-only
+  // views, so ANY active player could self-issue an unbounded reward:
+  // create a league, create a division, start a season as its sole
+  // participant with an attacker-chosen rewardStructure, then end it.
+  // Gating creation/lifecycle actions behind requireOrganizer (the same
+  // admin-granted role tournament-create/tournament-organize already
+  // require for the identical reason -- real money, no self-service fraud
+  // track record) closes this the same way that decision closed it there.
+  requireOrganizer(ctx.profile!);
 
   if (body.action === "create_league") {
     const league = await createLeague(

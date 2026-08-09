@@ -9,6 +9,7 @@ import {
   computePlayerReputationScore,
   computeResponseFactor,
   computeTournamentReputationScore,
+  computeTournamentScaleFactor,
 } from "./reputation-heuristics.ts";
 
 Deno.test("clampScore keeps values within [0, 100]", () => {
@@ -65,4 +66,52 @@ Deno.test("computeOrganizerReputationScore: cancellation rate drags the score do
   const halfCancelled = computeOrganizerReputationScore(100, 0.5);
   assertEquals(noCancellations, 100);
   assertEquals(halfCancelled < noCancellations, true);
+});
+
+// Hostile review finding (High): completedBonus previously applied in
+// full to any completed tournament regardless of size -- a 2-player, free
+// bracket (the platform minimum) scored identically to a large, real one,
+// making organizer/tournament reputation cheap to farm. Fixed by scaling
+// completedBonus with computeTournamentScaleFactor before it reaches
+// computeTournamentReputationScore.
+Deno.test("computeTournamentScaleFactor: a 2-player (platform minimum) bracket earns roughly half credit, not full", () => {
+  const factor = computeTournamentScaleFactor(2);
+  assertEquals(factor > 0.3 && factor < 0.7, true);
+});
+
+Deno.test("computeTournamentScaleFactor: an 8-participant field earns full credit", () => {
+  assertAlmostEquals(computeTournamentScaleFactor(8), 1, 0.001);
+});
+
+Deno.test("computeTournamentScaleFactor: never exceeds 1 for very large fields", () => {
+  assertEquals(computeTournamentScaleFactor(256) <= 1, true);
+});
+
+Deno.test("computeTournamentScaleFactor: zero registrations earns zero credit, not a crash", () => {
+  assertEquals(computeTournamentScaleFactor(0), 0);
+});
+
+Deno.test("computeTournamentScaleFactor is monotonically non-decreasing with registration count", () => {
+  const sizes = [0, 1, 2, 4, 8, 16, 32];
+  for (let i = 1; i < sizes.length; i++) {
+    assertEquals(
+      computeTournamentScaleFactor(sizes[i]) >=
+        computeTournamentScaleFactor(sizes[i - 1]),
+      true,
+    );
+  }
+});
+
+Deno.test("a scaled-down completedBonus for a trivial (2-player) tournament scores lower than a full-credit (8-player) one, all else equal", () => {
+  const trivialScore = computeTournamentReputationScore(
+    40 * computeTournamentScaleFactor(2),
+    0,
+    0,
+  );
+  const realScore = computeTournamentReputationScore(
+    40 * computeTournamentScaleFactor(8),
+    0,
+    0,
+  );
+  assertEquals(trivialScore < realScore, true);
 });

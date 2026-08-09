@@ -17,6 +17,12 @@ import {
 } from "../_shared/validation/validate.ts";
 import { successResponse } from "../_shared/response/index.ts";
 import { ValidationError } from "../_shared/errors/index.ts";
+import { idempotencyKeyHeaderSchema } from "../_shared/validation/schemas.ts";
+import {
+  beginIdempotentRequest,
+  completeIdempotentRequest,
+  failIdempotentRequest,
+} from "../_shared/idempotency/index.ts";
 import {
   createTemplate,
   getOrganizerDashboard,
@@ -78,6 +84,23 @@ async function requireTournamentOwnerOrAdmin(
   }
 }
 
+// Hostile review finding (Medium): payoutStructure percentages were
+// completely unvalidated. computePayoutShares (_tournament/workflow.ts)
+// multiplies totalPoolCents by each value / 100 -- an out-of-range or
+// over-100-sum structure doesn't steal funds (postBalancedEntries hard-
+// rejects any unbalanced ledger request), but it does permanently stick
+// the tournament in prize_distribution with every registrant's entry fee
+// locked in escrow. Bounding it here is cheap insurance against both a
+// malicious organizer and an honest typo.
+const payoutStructureSchema = z
+  .record(z.string(), z.number().positive().max(100))
+  .default({})
+  .refine(
+    (structure) =>
+      Object.values(structure).reduce((sum, v) => sum + v, 0) <= 100,
+    { message: "payoutStructure percentages must not sum to more than 100." },
+  );
+
 const postBodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create_template"),
@@ -85,7 +108,7 @@ const postBodySchema = z.discriminatedUnion("action", [
     gameId: z.string().uuid(),
     format: z.enum(["single_elim", "double_elim", "round_robin", "swiss"]),
     entryFeeCents: z.number().int().nonnegative(),
-    payoutStructure: z.record(z.string(), z.number()).default({}),
+    payoutStructure: payoutStructureSchema,
     visibility: z.enum(["public", "private", "invite_only"]).default("public"),
     isRecurring: z.boolean().default(false),
     recurrenceRule: z.string().max(200).nullable().default(null),
@@ -193,13 +216,38 @@ async function handlePost(ctx: EdgeContext): Promise<Response> {
     return successResponse(result, { status: 201 });
   }
   if (body.action === "spawn_from_template") {
-    const result = await spawnFromTemplate(userId, body.templateId, {
-      registrationOpensAt: body.registrationOpensAt,
-      registrationClosesAt: body.registrationClosesAt,
-      checkInOpensAt: body.checkInOpensAt,
-      startsAt: body.startsAt,
-    });
-    return successResponse(result, { status: 201 });
+    // Hostile review finding (Medium): unlike tournament-register, this
+    // action had no idempotency protection -- a retried/double-clicked
+    // request created two independent draft tournaments from the same
+    // template, each of which then independently opens registration and
+    // collects entry fees. Same Idempotency-Key pattern as
+    // tournament-register/index.ts.
+    const idempotencyKey = idempotencyKeyHeaderSchema.parse(
+      ctx.request.headers.get("Idempotency-Key"),
+    );
+    const idempotency = await beginIdempotentRequest<{ id: string }>(
+      idempotencyKey,
+      "tournament-organize:spawn_from_template",
+      body,
+    );
+    if (idempotency.kind === "replayed") {
+      return successResponse(idempotency.response.body, {
+        status: idempotency.response.statusCode,
+      });
+    }
+    try {
+      const result = await spawnFromTemplate(userId, body.templateId, {
+        registrationOpensAt: body.registrationOpensAt,
+        registrationClosesAt: body.registrationClosesAt,
+        checkInOpensAt: body.checkInOpensAt,
+        startsAt: body.startsAt,
+      });
+      await completeIdempotentRequest(idempotencyKey, 201, result);
+      return successResponse(result, { status: 201 });
+    } catch (err) {
+      await failIdempotentRequest(idempotencyKey);
+      throw err;
+    }
   }
 
   if (body.action === "invite") {

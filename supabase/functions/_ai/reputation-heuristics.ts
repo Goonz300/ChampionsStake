@@ -43,6 +43,27 @@ export function computeTournamentReputationScore(
   );
 }
 
+/**
+ * Hostile review finding (High): completedBonus previously applied in full
+ * to ANY completed tournament regardless of size, so the cheapest legal
+ * tournament (2 players, the platform minimum, zero entry fee) scored
+ * identically to a large, real one -- a way to farm organizer/tournament
+ * reputation almost for free. Same diminishing-returns log shape as
+ * computeExperienceFactor above (volume matters, but with quickly
+ * diminishing returns), scaled 0..1: a 2-player bracket earns about half
+ * credit, an 8-or-larger field earns full credit.
+ */
+export function computeTournamentScaleFactor(
+  registrationCount: number,
+): number {
+  const REFERENCE_SIZE = 8;
+  return Math.min(
+    1,
+    Math.log2(1 + Math.max(0, registrationCount)) /
+      Math.log2(1 + REFERENCE_SIZE),
+  );
+}
+
 export function computeOrganizerReputationScore(
   avgTournamentScore: number,
   cancellationRate: number,
