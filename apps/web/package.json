@@ -17,10 +17,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "next": "15.1.0",
+    "next": "15.5.23",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "@supabase/supabase-js": "2.47.10",
+    "@supabase/supabase-js": "2.50.5",
     "@supabase/ssr": "0.5.2",
     "zod": "3.24.1"
   },
@@ -30,7 +30,7 @@
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
     "eslint": "9.17.0",
-    "eslint-config-next": "15.1.0",
+    "eslint-config-next": "15.5.23",
     "@typescript-eslint/eslint-plugin": "8.18.2",
     "@typescript-eslint/parser": "8.18.2",
     "prettier": "3.4.2",
@@ -38,6 +38,6 @@
     "tailwindcss": "3.4.17",
     "postcss": "8.4.49",
     "autoprefixer": "10.4.20",
-    "vitest": "2.1.8"
+    "vitest": "3.2.7"
   }
 }

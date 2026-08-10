@@ -7,7 +7,7 @@ Competitive gaming marketplace with escrow-protected challenges. Official domain
 ```
 apps/web/            Next.js 15 application (Node runtime, npm workspace)
 supabase/functions/   Supabase Edge Functions (Deno runtime -- NOT an npm workspace)
-supabase/migrations/  Database schema (64 migrations)
+supabase/migrations/  Database schema (105 migrations)
 supabase/rollback/     Matching rollback script per migration
 supabase/tests/        SQL-level security/integration tests
 packages/shared/       Reserved for genuinely cross-runtime code (currently empty -- see its own README)

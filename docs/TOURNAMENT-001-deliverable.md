@@ -20,7 +20,9 @@ supabase/migrations/0046-0048
 
 ## 3. Bracket Engine
 
-Single elimination fully implemented with standard tournament seeding (1v8, 4v5, 2v7, 3v6 for 8 players; byes automatically go to top seeds for non-power-of-two fields) — verified by simulating the exact algorithm in Python before committing it as a Deno test, the same verification discipline used for CHALLENGE-001's state-machine tests. Double elimination, Swiss, and round robin are architecture-ready (`BracketGenerator` interface) but throw clear "not implemented" errors rather than silently producing a wrong bracket — Business Rules §5 doesn't specify their pairing/tiebreak rules closely enough to implement without inventing rules unilaterally.
+Single elimination fully implemented with standard tournament seeding (1v8, 4v5, 2v7, 3v6 for 8 players; byes automatically go to top seeds for non-power-of-two fields) — verified by simulating the exact algorithm in Python before committing it as a Deno test, the same verification discipline used for CHALLENGE-001's state-machine tests. Double elimination, Swiss, and round robin were architecture-ready (`BracketGenerator` interface) but threw clear "not implemented" errors at the time this document was written — Business Rules §5 didn't specify their pairing/tiebreak rules closely enough to implement without inventing rules unilaterally at that point in the project.
+
+**Update (Phase 8, superseding the above)**: all three formats are now fully implemented in `_tournament/bracket.ts`, with dedicated test coverage in `bracket.test.ts` (double-elimination winners/losers bracket seeding and grand final, round-robin full round-trip with bye handling, Swiss score-group pairing and rematch avoidance). See `docs/SCHEDULING_DESIGN.md` and `docs/TOURNAMENT_ANALYTICS_DESIGN.md` for the Phase 8 tournament-platform documentation this superseded-but-historical file predates.
 
 ## 4. Workflow Engine
 

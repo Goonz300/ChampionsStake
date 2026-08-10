@@ -45,7 +45,15 @@ const eslintConfig = [
   // `npm run build` (needed to validate a change) left a .next/ directory
   // behind and the next `npm run lint` tried to lint Next's own generated
   // type-checking shims inside it.
-  { ignores: [".next/**"] },
+  // Phase 8.5: upgrading Next 15.1.0 -> 15.5.23 (dependency-vulnerability
+  // fix) changed next-env.d.ts's own generated content to include a third
+  // triple-slash reference (./.next/types/routes.d.ts, for typed routes).
+  // That file is Next's own build output, regenerated on every dev/build
+  // run and explicitly marked "should not be edited" -- excluding it from
+  // lint is the standard fix (not a project-specific relaxation), the same
+  // class of exclusion as .next/** itself, just for the one generated file
+  // that happens to live outside that directory.
+  { ignores: [".next/**", "next-env.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     files: ["**/*.ts", "**/*.tsx"],

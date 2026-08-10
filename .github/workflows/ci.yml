@@ -32,6 +32,14 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
 
+      - name: Unit tests
+        # Phase 8.5 fix: this step never existed, so the 28 test files /
+        # 193 tests under apps/web (including auth/MFA/rate-limit/
+        # authorization coverage) never gated a merge -- a regression here
+        # would pass CI silently. vitest.config.ts already provides its own
+        # placeholder env vars, so no extra `env:` block is needed here.
+        run: npm run test
+
       - name: Build
         run: npm run build
         env:
@@ -55,6 +63,16 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Cache Deno dependencies
+        # Phase 8.5 fix: deno.lock existed but was never used to key a
+        # cache, so every CI run re-fetched every npm:/jsr: import fresh.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/deno
+          key: ${{ runner.os }}-deno-${{ hashFiles('deno.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deno-
+
       - name: Deno format check
         run: deno fmt --check supabase/functions/
 
@@ -73,3 +91,9 @@ jobs:
             echo "Checking $f"
             deno check "$f"
           done
+
+      - name: Deno tests
+        # Phase 8.5 fix: this step never existed, so the 26 Deno test files
+        # (including the wallet-ledger double-entry-balance tests and every
+        # bracket-format test) never gated a merge.
+        run: deno test --allow-env supabase/functions/
