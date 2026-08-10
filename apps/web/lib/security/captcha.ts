@@ -1,4 +1,5 @@
 import { serverEnv } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -39,6 +40,11 @@ export async function verifyCaptcha(token: string | undefined, remoteIp: string)
   if (!token) return false;
 
   try {
+    // Phase 8.5 chaos-engineering fix (same class as the backend outbound-
+    // call findings in docs/PHASE8_5_CHAOS_ENGINEERING.md, just frontend-
+    // side and caught later): no timeout meant a slow/hanging Turnstile
+    // response would hold the login flow open for the request's full
+    // budget instead of failing fast into this existing fail-open handler.
     const response = await fetch(TURNSTILE_VERIFY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -47,6 +53,7 @@ export async function verifyCaptcha(token: string | undefined, remoteIp: string)
         response: token,
         remoteip: remoteIp,
       }),
+      signal: AbortSignal.timeout(8000),
     });
     const result = (await response.json()) as { success?: boolean };
     return result.success === true;
@@ -54,7 +61,9 @@ export async function verifyCaptcha(token: string | undefined, remoteIp: string)
     // A CAPTCHA-provider outage must not itself lock every user out --
     // fail open, same rationale as isLoginRateLimited. The rate limit and
     // (once triggered) progressive delay/lockout remain the real gates.
-    console.error("CAPTCHA verification request failed, allowing through:", err);
+    logger.error("CAPTCHA verification request failed, allowing through", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return true;
   }
 }

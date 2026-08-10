@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { serverEnv } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 const DEFAULT_FAILURES_TO_LOCK = 5;
 const DEFAULT_INITIAL_LOCKOUT_MINUTES = 15;
@@ -41,7 +42,10 @@ export async function isAccountLocked(email: string, ipAddress: string): Promise
     // query must not itself take the whole login flow down. The rolling
     // rate limit (which fails open the same way, for the same reason)
     // remains the backstop.
-    console.error("Lockout check failed, allowing the attempt through:", error);
+    logger.error("Lockout check failed, allowing the attempt through", {
+      email,
+      error: error.message,
+    });
     return { locked: false, lockedUntil: null };
   }
 
