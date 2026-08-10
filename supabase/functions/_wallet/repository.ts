@@ -96,6 +96,17 @@ export async function listTransactions(filter: TransactionHistoryFilter) {
     ledgerQuery = ledgerQuery.gte("created_at", filter.fromDate);
   }
   if (filter.toDate) ledgerQuery = ledgerQuery.lte("created_at", filter.toDate);
+  // Final hostile review finding (Medium-High): this fix's own first draft
+  // applied fromDate/toDate here but forgot cursor, while the .limit(2000)
+  // safety valve above always pinned the query to the newest 2000 ledger
+  // rows overall -- a caller paging back via cursor (the normal "load
+  // more" flow, apps/web's wallet-history UI included) would eventually
+  // cursor past that fixed window and see a false "end of history," with
+  // older real transactions permanently unreachable through this
+  // function. Applying cursor here too means each page's ledger scan is
+  // windowed relative to THAT page's cursor, not a single fixed top-2000
+  // slice, so deep pagination stays correct.
+  if (filter.cursor) ledgerQuery = ledgerQuery.lt("created_at", filter.cursor);
 
   const { data: ledgerRows, error: ledgerError } = await ledgerQuery;
 
