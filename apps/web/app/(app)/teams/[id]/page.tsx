@@ -12,19 +12,22 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: team } = await supabase
-    .from("teams")
-    .select("id, name, team_type, description, owner_id")
-    .eq("id", id)
-    .maybeSingle();
+  // Phase 8.5 performance review fix: members only needs the route id,
+  // not the resolved team row -- fetched concurrently.
+  const [{ data: team }, { data: members }] = await Promise.all([
+    supabase
+      .from("teams")
+      .select("id, name, team_type, description, owner_id")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("team_members")
+      .select("user_id, role, joined_at, profiles(display_name)")
+      .eq("team_id", id)
+      .is("left_at", null)
+      .order("joined_at", { ascending: true }),
+  ]);
   if (!team) notFound();
-
-  const { data: members } = await supabase
-    .from("team_members")
-    .select("user_id, role, joined_at, profiles(display_name)")
-    .eq("team_id", id)
-    .is("left_at", null)
-    .order("joined_at", { ascending: true });
 
   const myMembership = (members ?? []).find((m) => m.user_id === user.id);
   const canInvite = myMembership?.role === "owner" || myMembership?.role === "captain";

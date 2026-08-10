@@ -34,7 +34,7 @@ export function substitute(
   );
 }
 
-interface RenderedTemplate {
+export interface RenderedTemplate {
   id: string;
   pushTitle?: string;
   pushBody?: string;
@@ -43,7 +43,17 @@ interface RenderedTemplate {
   emailBodyText?: string;
 }
 
-async function renderTemplate(
+/**
+ * Exported (Phase 8.5 performance review fix): previously called once
+ * per recipient inside BOTH sendPushNotification and
+ * enqueueEmailNotification below -- for one event with N recipients, that
+ * meant 2N identical renderTemplate calls (same eventType/variables every
+ * time, only userId varies), each re-querying notification_templates for
+ * a result that never changes within that event's processing. The caller
+ * (_realtime/notifications.ts) now renders once per event and passes the
+ * result into both delivery functions for every recipient.
+ */
+export async function renderTemplate(
   eventType: string,
   variables: Record<string, unknown>,
 ): Promise<RenderedTemplate | null> {
@@ -104,9 +114,9 @@ export async function sendPushNotification(
   userId: string,
   eventType: string,
   variables: Record<string, unknown>,
+  rendered: RenderedTemplate | null,
 ): Promise<void> {
   try {
-    const rendered = await renderTemplate(eventType, variables);
     if (!rendered?.pushTitle && !rendered?.pushBody) return;
 
     const supabase = getServiceRoleClient();
@@ -158,9 +168,9 @@ export async function enqueueEmailNotification(
   userId: string,
   eventType: string,
   variables: Record<string, unknown>,
+  rendered: RenderedTemplate | null,
 ): Promise<void> {
   try {
-    const rendered = await renderTemplate(eventType, variables);
     if (!rendered?.emailSubject) return;
 
     const supabase = getServiceRoleClient();

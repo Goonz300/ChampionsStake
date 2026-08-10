@@ -520,10 +520,15 @@ export async function reviewFlag(
     .eq("id", flagId);
 }
 
-export async function listFraudFlags(status?: string) {
+// Phase 8.5 performance review fix: had no .limit() at all when status was
+// omitted -- fraud_flags accumulates monotonically as the fraud-detection
+// sweeps run on a schedule, so this was a genuinely unbounded full-table
+// fetch, growing worse over the platform's lifetime every time a moderator
+// opened the flag dashboard without filtering by status.
+export async function listFraudFlags(status?: string, limit = 200) {
   let query = supabase.from("fraud_flags").select(
     "*, primary:primary_user_id(display_name)",
-  ).order("score", { ascending: false });
+  ).order("score", { ascending: false }).limit(limit);
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
   if (error) throw new Error(`Failed to list fraud flags: ${error.message}`);

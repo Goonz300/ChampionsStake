@@ -81,15 +81,27 @@ export async function runReconciliation(triggeredBy: string | null): Promise<{
           referral: wallet.referralCents,
         };
 
-        for (const accountType of ACCOUNT_TYPES) {
-          const { data: fnResult, error: fnError } = await supabase.rpc(
-            "fn_wallet_balance",
-            {
-              p_wallet_id: wallet.walletId,
-              p_account_type: accountType,
-            },
-          );
+        // Phase 8.5 performance review fix: the 5 account-type checks per
+        // wallet were fully sequential (5 awaited round trips before
+        // moving to the next wallet) -- for a 100,000-wallet sweep (this
+        // function's own stated design target) that's ~500,000 serialized
+        // RPC calls. Each account type is an independent check against a
+        // different wallet_ledger slice, so running them concurrently is
+        // safe -- it only changes wall-clock time, not what gets checked.
+        const results = await Promise.all(
+          ACCOUNT_TYPES.map(async (accountType) => {
+            const { data: fnResult, error: fnError } = await supabase.rpc(
+              "fn_wallet_balance",
+              {
+                p_wallet_id: wallet.walletId,
+                p_account_type: accountType,
+              },
+            );
+            return { accountType, fnResult, fnError };
+          }),
+        );
 
+        for (const { accountType, fnResult, fnError } of results) {
           if (fnError) {
             logger.error("Reconciliation: fn_wallet_balance call failed", {
               walletId: wallet.walletId,

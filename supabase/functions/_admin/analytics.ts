@@ -6,11 +6,20 @@
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 
+// Phase 8.5 performance review fix: every query below is date-windowed by
+// a CALLER-supplied `days` value with no independent cap -- a large `days`
+// request against a growing table (profiles, challenges, tournaments,
+// wallet_ledger, disputes) was otherwise unbounded. Safety-valve only,
+// not a page size: realistic admin-dashboard `days` values stay far below
+// this.
+const ANALYTICS_SCAN_LIMIT = 50_000;
+
 export async function userGrowth(days: number) {
   const supabase = getServiceRoleClient();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("profiles").select("created_at")
-    .gte("created_at", since);
+    .gte("created_at", since)
+    .limit(ANALYTICS_SCAN_LIMIT);
   if (error) throw new Error(error.message);
 
   const byDay: Record<string, number> = {};
@@ -26,7 +35,7 @@ export async function challengeVolume(days: number) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("challenges").select(
     "created_at, status",
-  ).gte("created_at", since);
+  ).gte("created_at", since).limit(ANALYTICS_SCAN_LIMIT);
   if (error) throw new Error(error.message);
   return {
     total: (data ?? []).length,
@@ -39,7 +48,7 @@ export async function tournamentVolume(days: number) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("tournaments").select(
     "created_at, status, format",
-  ).gte("created_at", since);
+  ).gte("created_at", since).limit(ANALYTICS_SCAN_LIMIT);
   if (error) throw new Error(error.message);
   return {
     total: (data ?? []).length,
@@ -55,7 +64,8 @@ export async function revenue(days: number) {
     .select("amount_cents")
     .eq("account_type", "platform_fee_revenue")
     .eq("direction", "credit")
-    .gte("created_at", since);
+    .gte("created_at", since)
+    .limit(ANALYTICS_SCAN_LIMIT);
   if (error) throw new Error(error.message);
   return {
     totalFeeCents: (data ?? []).reduce((s, r) => s + r.amount_cents, 0),
@@ -82,7 +92,7 @@ export async function disputeStatistics(days: number) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("disputes").select(
     "status, resolution, created_at",
-  ).gte("created_at", since);
+  ).gte("created_at", since).limit(ANALYTICS_SCAN_LIMIT);
   if (error) throw new Error(error.message);
   return {
     total: (data ?? []).length,

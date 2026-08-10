@@ -78,10 +78,26 @@ export interface TransactionHistoryFilter {
 export async function listTransactions(filter: TransactionHistoryFilter) {
   const supabase = getServiceRoleClient();
 
-  const { data: ledgerRows, error: ledgerError } = await supabase
+  // Phase 8.5 performance review fix: this previously fetched EVERY
+  // wallet_ledger row for the wallet, unbounded, regardless of the
+  // filter.limit the caller actually asked for -- a wallet with a long
+  // history paid that full-history cost on every single history view.
+  // Pushing the same date-range filters used below into this query lets
+  // a date-scoped request stay bounded; a generous safety-valve limit
+  // (ordered newest-first, matching the final result's own ordering)
+  // caps the fully-unbounded case instead of loading an unbounded set.
+  let ledgerQuery = supabase
     .from("wallet_ledger")
     .select("wallet_transaction_id")
-    .eq("wallet_id", filter.walletId);
+    .eq("wallet_id", filter.walletId)
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (filter.fromDate) {
+    ledgerQuery = ledgerQuery.gte("created_at", filter.fromDate);
+  }
+  if (filter.toDate) ledgerQuery = ledgerQuery.lte("created_at", filter.toDate);
+
+  const { data: ledgerRows, error: ledgerError } = await ledgerQuery;
 
   if (ledgerError) {
     throw new Error(`Failed to look up ledger entries: ${ledgerError.message}`);

@@ -17,22 +17,27 @@ export default async function TournamentDetailPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: tournament } = await supabase
-    .from("tournaments")
-    .select(
-      "id, name, format, status, entry_fee_cents, prize_pool_cents, starts_at, registration_opens_at, registration_closes_at, sponsor_name, created_by, visibility",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  // Phase 8.5 performance review fix: these two queries don't depend on
+  // each other (existingRegistration only needs the route id + user.id,
+  // not the resolved tournament row) -- fetched concurrently instead of
+  // as two sequential round trips.
+  const [{ data: tournament }, { data: existingRegistration }] = await Promise.all([
+    supabase
+      .from("tournaments")
+      .select(
+        "id, name, format, status, entry_fee_cents, prize_pool_cents, starts_at, registration_opens_at, registration_closes_at, sponsor_name, created_by, visibility",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("tournament_registrations")
+      .select("id")
+      .eq("tournament_id", id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   if (!tournament) notFound();
-
-  const { data: existingRegistration } = await supabase
-    .from("tournament_registrations")
-    .select("id")
-    .eq("tournament_id", id)
-    .eq("user_id", user.id)
-    .maybeSingle();
 
   const canRegister = tournament.status === "registration" && !existingRegistration;
 

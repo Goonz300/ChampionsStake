@@ -21,6 +21,16 @@ import {
 
 const supabase = getServiceRoleClient();
 
+// Phase 8.5 performance review fix: several queries below reduce a
+// row-level fetch to a sum/count in JS with no .limit() at all -- a
+// genuine "unbounded select on a table likely to grow large" pattern for
+// tables (wallet_ledger, fraud_flags, disputes) that only ever grow over
+// the platform's lifetime. This is a safety-valve cap, not a page size:
+// under realistic operation the existing date-range filters keep result
+// sets far below this, so it changes worst-case behavior only, not the
+// normal-case numbers these functions return.
+const ANALYTICS_SCAN_LIMIT = 50_000;
+
 export interface ChurnPrediction {
   userId: string;
   daysSinceLastSeen: number;
@@ -67,7 +77,8 @@ export async function forecastRevenue(days = 30): Promise<RevenueForecast> {
     .select("amount_cents, created_at")
     .eq("account_type", "platform_fee_revenue")
     .eq("direction", "credit")
-    .gte("created_at", since);
+    .gte("created_at", since)
+    .limit(ANALYTICS_SCAN_LIMIT);
 
   const byDay: Record<string, number> = {};
   for (const row of data ?? []) {
@@ -106,7 +117,8 @@ export async function forecastFraud(weeks = 8): Promise<FraudForecast> {
   const { data } = await supabase
     .from("fraud_flags")
     .select("created_at")
-    .gte("created_at", since);
+    .gte("created_at", since)
+    .limit(ANALYTICS_SCAN_LIMIT);
 
   const byWeek: Record<number, number> = {};
   const sinceMs = new Date(since).getTime();
@@ -169,7 +181,8 @@ export async function computePlayerLtv(
       .from("wallet_ledger")
       .select("wallet_transaction_id")
       .eq("wallet_id", wallet.id)
-      .gte("created_at", since);
+      .gte("created_at", since)
+      .limit(ANALYTICS_SCAN_LIMIT);
     const transactionIds = [
       ...new Set((ledgerRows ?? []).map((r) => r.wallet_transaction_id)),
     ];
@@ -281,7 +294,7 @@ export async function platformHealth(): Promise<number> {
       supabase.from("disputes").select("status").in(
         "status",
         ["open", "under_review", "resolved"],
-      ),
+      ).limit(ANALYTICS_SCAN_LIMIT),
       predictChurn(200),
     ]);
 

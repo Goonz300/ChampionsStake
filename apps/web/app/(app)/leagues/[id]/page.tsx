@@ -11,24 +11,24 @@ export default async function LeagueDetailPage({ params }: { params: Promise<{ i
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: league } = await supabase
-    .from("leagues")
-    .select("id, name, status")
-    .eq("id", id)
-    .maybeSingle();
+  // Phase 8.5 performance review fix: none of these three queries depend
+  // on each other's result (divisions/seasons only need the route id, not
+  // the resolved league row) -- fetched concurrently instead of three
+  // sequential round trips.
+  const [{ data: league }, { data: divisions }, { data: seasons }] = await Promise.all([
+    supabase.from("leagues").select("id, name, status").eq("id", id).maybeSingle(),
+    supabase
+      .from("divisions")
+      .select("id, name, tier")
+      .eq("league_id", id)
+      .order("tier", { ascending: true }),
+    supabase
+      .from("seasons")
+      .select("id, name, status, starts_at, ends_at")
+      .eq("league_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
   if (!league) notFound();
-
-  const { data: divisions } = await supabase
-    .from("divisions")
-    .select("id, name, tier")
-    .eq("league_id", id)
-    .order("tier", { ascending: true });
-
-  const { data: seasons } = await supabase
-    .from("seasons")
-    .select("id, name, status, starts_at, ends_at")
-    .eq("league_id", id)
-    .order("created_at", { ascending: false });
 
   const activeSeason = (seasons ?? []).find((s) => s.status === "active");
 

@@ -13,7 +13,11 @@
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { logger } from "../_shared/logger/index.ts";
 import type { NotificationCategory } from "./types.ts";
-import { enqueueEmailNotification, sendPushNotification } from "./delivery.ts";
+import {
+  enqueueEmailNotification,
+  renderTemplate,
+  sendPushNotification,
+} from "./delivery.ts";
 
 interface EventToNotificationRule {
   category: NotificationCategory;
@@ -265,49 +269,33 @@ const EVENT_RULES: Record<string, EventToNotificationRule> = {
   },
 };
 
-async function isCategoryEnabled(
+// Phase 8.5 performance review fix: isCategoryEnabled and
+// isEmailChannelEnabled below both independently queried the exact same
+// user_preferences row for the exact same userId -- two round trips per
+// recipient to read one row twice, parsing a different sub-field each
+// time. Fetches once now; both booleans are derived from the same read.
+// Behavior is unchanged: the push flag still gates the in-app insert AND
+// the push send (call sites unchanged), the email flag still gates only
+// the email enqueue.
+async function getNotificationChannelPreferences(
   userId: string,
   preferenceKey: string,
-): Promise<boolean> {
+): Promise<{ pushEnabled: boolean; emailEnabled: boolean }> {
   const { data } = await supabase
     .from("user_preferences")
     .select("notification_preferences")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!data) return true;
+  if (!data) return { pushEnabled: true, emailEnabled: true };
   const prefs = data.notification_preferences as Record<
     string,
-    { push?: boolean }
+    { push?: boolean; email?: boolean }
   >;
-  return prefs?.[preferenceKey]?.push !== false;
-}
-
-/**
- * Phase 4 addition: the email channel has its own preference key
- * (user_preferences' default jsonb already ships a distinct `email`
- * boolean per category, migration 0027) but nothing ever read it --
- * isCategoryEnabled above only ever checked `.push`, and used that single
- * check to gate BOTH the in-app row and (now) the actual push send, since
- * "push" is genuinely what that preference key means. Email needs its own
- * check since a user may want one channel without the other.
- */
-async function isEmailChannelEnabled(
-  userId: string,
-  preferenceKey: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from("user_preferences")
-    .select("notification_preferences")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (!data) return true;
-  const prefs = data.notification_preferences as Record<
-    string,
-    { email?: boolean }
-  >;
-  return prefs?.[preferenceKey]?.email !== false;
+  return {
+    pushEnabled: prefs?.[preferenceKey]?.push !== false,
+    emailEnabled: prefs?.[preferenceKey]?.email !== false,
+  };
 }
 
 /**
@@ -345,8 +333,17 @@ export async function processUnhandledEvents(
       const recipients = await rule.resolveRecipients(
         event.payload as Record<string, unknown>,
       );
+      // Rendered once per event, not once per recipient (Phase 8.5
+      // performance review fix) -- eventType/payload are identical for
+      // every recipient of this same event, so the rendered result is too.
+      const rendered = await renderTemplate(
+        event.event_type,
+        event.payload as Record<string, unknown>,
+      );
       for (const userId of recipients) {
-        if (!(await isCategoryEnabled(userId, rule.preferenceKey))) continue;
+        const { pushEnabled, emailEnabled } =
+          await getNotificationChannelPreferences(userId, rule.preferenceKey);
+        if (!pushEnabled) continue;
 
         await supabase.from("notifications").insert({
           user_id: userId,
@@ -366,12 +363,14 @@ export async function processUnhandledEvents(
           userId,
           event.event_type,
           event.payload as Record<string, unknown>,
+          rendered,
         );
-        if (await isEmailChannelEnabled(userId, rule.preferenceKey)) {
+        if (emailEnabled) {
           await enqueueEmailNotification(
             userId,
             event.event_type,
             event.payload as Record<string, unknown>,
+            rendered,
           );
         }
       }
