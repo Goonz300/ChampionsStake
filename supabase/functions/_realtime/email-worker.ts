@@ -37,6 +37,10 @@ async function sendViaResend(
     return { success: false, error: "RESEND_API_KEY is not configured." };
   }
 
+  // Phase 8.5 chaos-engineering fix: no timeout -- a slow/hanging Resend
+  // endpoint would tie up the email worker invocation indefinitely rather
+  // than failing fast into this function's own retry/backoff bookkeeping
+  // (email_queue's whole reason to exist).
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -50,6 +54,7 @@ async function sendViaResend(
       html: row.body_html ?? undefined,
       text: row.body_text ?? undefined,
     }),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!response.ok) {

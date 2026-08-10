@@ -38,6 +38,10 @@ async function paystackRequest<T>(
   method: "GET" | "POST",
   body?: unknown,
 ): Promise<T> {
+  // Phase 8.5 chaos-engineering fix: no timeout meant a slow/hanging
+  // Paystack response could tie up a real payment-facing Edge Function
+  // invocation indefinitely instead of failing fast into this function's
+  // existing error handling.
   const response = await fetch(`${PAYSTACK_BASE_URL}${path}`, {
     method,
     headers: {
@@ -45,6 +49,7 @@ async function paystackRequest<T>(
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(15000),
   });
 
   const json = await response.json();

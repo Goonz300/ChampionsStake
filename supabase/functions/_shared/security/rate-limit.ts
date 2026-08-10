@@ -36,9 +36,20 @@ class UpstashBackend implements RateLimitBackend {
   ) {}
 
   async increment(key: string, windowSeconds: number): Promise<number> {
+    // Phase 8.5 chaos-engineering fix: neither call had a timeout, so the
+    // caller's try/catch (incrementWithFallback below) -- which correctly
+    // falls back to Postgres on an Upstash ERROR -- could never trigger on
+    // an Upstash HANG (up/reachable but pathologically slow, or a network
+    // partition with no TCP RST). A rate limiter that can block on a
+    // downstream hang defeats its own purpose: it must fail fast, not just
+    // fail cleanly. AbortSignal.timeout turns a hang into the same
+    // rejection path a real error already takes.
+    const RATE_LIMIT_BACKEND_TIMEOUT_MS = 2000;
+
     // Upstash REST API: INCR then EXPIRE (set only on first increment via NX-like check).
     const incrRes = await fetch(`${this.url}/incr/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${this.token}` },
+      signal: AbortSignal.timeout(RATE_LIMIT_BACKEND_TIMEOUT_MS),
     });
     const incrJson = await incrRes.json();
     const count = Number(incrJson.result ?? 0);
@@ -48,6 +59,7 @@ class UpstashBackend implements RateLimitBackend {
         `${this.url}/expire/${encodeURIComponent(key)}/${windowSeconds}`,
         {
           headers: { Authorization: `Bearer ${this.token}` },
+          signal: AbortSignal.timeout(RATE_LIMIT_BACKEND_TIMEOUT_MS),
         },
       );
     }

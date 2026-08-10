@@ -90,10 +90,17 @@ async function sendExpoPush(
   if (config.notifications.expoAccessToken) {
     headers["Authorization"] = `Bearer ${config.notifications.expoAccessToken}`;
   }
+  // Phase 8.5 chaos-engineering fix: no timeout -- this whole call is
+  // already wrapped in the caller's try/catch (best-effort, must never
+  // fail the caller's real action), but with no timeout a slow/hanging
+  // Expo endpoint would still tie up the invocation for the platform's
+  // full execution budget instead of failing fast into that existing
+  // handler.
   const response = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
     headers,
     body: JSON.stringify(tokens.map((to) => ({ to, title, body, data }))),
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) {
     logger.error("Expo push send failed", { status: response.status });

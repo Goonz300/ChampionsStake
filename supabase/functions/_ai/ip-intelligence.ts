@@ -25,9 +25,17 @@ const TOR_BULK_EXIT_LIST_URL = "https://check.torproject.org/torbulkexitlist";
 const AWS_IP_RANGES_URL = "https://ip-ranges.amazonaws.com/ip-ranges.json";
 const GCP_IP_RANGES_URL = "https://www.gstatic.com/ipranges/cloud.json";
 
+// Phase 8.5 chaos-engineering fix: none of the three outbound fetches in
+// this file had a timeout -- a slow/hanging source would tie up this
+// 6-hour cron sweep indefinitely instead of failing that one refresh and
+// letting the next scheduled run retry.
+const IP_SOURCE_FETCH_TIMEOUT_MS = 15000;
+
 export async function refreshTorExitNodes(): Promise<{ count: number }> {
   const supabase = getServiceRoleClient();
-  const response = await fetch(TOR_BULK_EXIT_LIST_URL);
+  const response = await fetch(TOR_BULK_EXIT_LIST_URL, {
+    signal: AbortSignal.timeout(IP_SOURCE_FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(
       `Failed to fetch TOR exit list: HTTP ${response.status}`,
@@ -67,7 +75,9 @@ export async function refreshDatacenterRanges(): Promise<{ count: number }> {
   const rows: { provider: string; cidr: string; updated_at: string }[] = [];
   const now = new Date().toISOString();
 
-  const awsResponse = await fetch(AWS_IP_RANGES_URL);
+  const awsResponse = await fetch(AWS_IP_RANGES_URL, {
+    signal: AbortSignal.timeout(IP_SOURCE_FETCH_TIMEOUT_MS),
+  });
   if (awsResponse.ok) {
     const data = await awsResponse.json() as AwsIpRangesResponse;
     const seen = new Set<string>();
@@ -83,7 +93,9 @@ export async function refreshDatacenterRanges(): Promise<{ count: number }> {
     });
   }
 
-  const gcpResponse = await fetch(GCP_IP_RANGES_URL);
+  const gcpResponse = await fetch(GCP_IP_RANGES_URL, {
+    signal: AbortSignal.timeout(IP_SOURCE_FETCH_TIMEOUT_MS),
+  });
   if (gcpResponse.ok) {
     const data = await gcpResponse.json() as GcpIpRangesResponse;
     const seen = new Set<string>();
