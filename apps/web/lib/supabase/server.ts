@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { clientEnv, serverEnv } from "@/lib/env";
 import type { Database } from "@/lib/supabase/types";
+import { secureCookieOptions } from "@/lib/supabase/cookie-options";
 
 /**
  * Server-side Supabase client for use in Server Components, Route Handlers,
@@ -39,6 +40,7 @@ export async function createClient() {
           }
         },
       },
+      cookieOptions: secureCookieOptions,
     },
   );
 }

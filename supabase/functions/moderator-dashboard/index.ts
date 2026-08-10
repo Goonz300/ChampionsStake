@@ -52,7 +52,9 @@ async function handler(ctx: EdgeContext): Promise<Response> {
       await generateModerationSuggestion(query.disputeId),
     );
   }
-  return successResponse(await getEvidenceList(query.disputeId));
+  return successResponse(
+    await getEvidenceList(query.disputeId, ctx.user!.id, isAdmin),
+  );
 }
 
 Deno.serve(

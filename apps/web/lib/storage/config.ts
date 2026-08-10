@@ -85,8 +85,13 @@ export const BUCKET_CONFIG: Record<StorageBucket, BucketConfig> = {
     retentionDays: null,
   },
   "system-assets": {
+    // Phase 8.5 hostile-review fix: image/svg+xml removed. Nothing in this
+    // codebase sanitizes SVG content (image-processing.ts's threat scanner
+    // is an honest no-op), and this bucket is public -- an admin-uploaded
+    // SVG containing <script> would execute if a browser navigated to it
+    // directly. See migration 0107 for the matching Storage-level fix.
     maxSizeBytes: 10 * 1024 * 1024,
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/svg+xml"],
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
     pathEntityKind: "category",
     public: true,
     retentionDays: null,

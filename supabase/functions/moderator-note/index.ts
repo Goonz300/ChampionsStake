@@ -23,16 +23,24 @@ const getSchema = z.object({ disputeId: z.string().uuid() });
 
 async function handler(ctx: EdgeContext): Promise<Response> {
   requireModerator(ctx.profile!);
+  const isAdmin = ctx.profile!.role === "administrator";
 
   if (ctx.request.method === "GET") {
     const url = new URL(ctx.request.url);
     const query = validateQuery(getSchema, url);
-    return successResponse(await listNotes(query.disputeId));
+    return successResponse(
+      await listNotes(query.disputeId, ctx.user!.id, isAdmin),
+    );
   }
 
   if (ctx.request.method === "POST") {
     const body = validateBody(postSchema, await parseJsonBody(ctx.request));
-    const result = await addNote(body.disputeId, ctx.user!.id, body.content);
+    const result = await addNote(
+      body.disputeId,
+      ctx.user!.id,
+      body.content,
+      isAdmin,
+    );
     return successResponse(result, { status: 201 });
   }
 

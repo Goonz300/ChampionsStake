@@ -15,8 +15,22 @@ import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { AuthorizationError } from "../_shared/errors/index.ts";
 import { getChallengeTimeline } from "../_challenge/workflow.ts";
 import { getDisputeOrThrow } from "./repository.ts";
+import { isModeratorAllowedOnDispute } from "./authorization-heuristics.ts";
 
-async function assertModeratorOnDispute(
+/**
+ * Hostile review finding (High, Phase 8.5): this function's condition was
+ * inverted -- it `return`ed (allowed access) in exactly the branch meant
+ * to DENY it (someone else is assigned), and never threw under any input.
+ * Combined with decisions.ts/notes.ts never calling this at all, dispute
+ * assignment (queue.ts's claimDispute/assignDispute, whose own
+ * "already assigned to another moderator" ConflictError only made sense
+ * if downstream actions actually respected it) was purely cosmetic --
+ * any active moderator could read or act on any dispute regardless of
+ * assignment, overriding whoever was already reviewing it. Fixed to
+ * actually throw, and exported so decisions.ts/notes.ts can reuse this
+ * one check rather than each re-deriving it.
+ */
+export async function assertModeratorOnDispute(
   disputeId: string,
   moderatorId: string,
   isAdmin: boolean,
@@ -24,9 +38,15 @@ async function assertModeratorOnDispute(
   if (isAdmin) return;
   const dispute = await getDisputeOrThrow(disputeId);
   if (
-    dispute.assignedModeratorId && dispute.assignedModeratorId !== moderatorId
+    !isModeratorAllowedOnDispute(
+      dispute.assignedModeratorId,
+      moderatorId,
+      isAdmin,
+    )
   ) {
-    return;
+    throw new AuthorizationError(
+      "This dispute is assigned to a different moderator.",
+    );
   }
 }
 
@@ -111,7 +131,13 @@ async function getChatReadOnlyForModerator(
   return data ?? [];
 }
 
-export async function getEvidenceList(disputeId: string) {
+export async function getEvidenceList(
+  disputeId: string,
+  moderatorId: string,
+  isAdmin: boolean,
+) {
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
+
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("dispute_evidence")

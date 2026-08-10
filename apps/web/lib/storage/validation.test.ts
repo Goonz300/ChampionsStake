@@ -118,7 +118,26 @@ describe("validateUpload", () => {
   });
 
   it("skips the magic-byte check for MIME types with no registered signature", () => {
-    // image/svg+xml has no signature entry — should not throw for that reason.
+    // video/quicktime (allowed for proof-videos) has no signature entry —
+    // should not throw for that reason specifically.
+    expect(() =>
+      validateUpload({
+        bucket: "proof-videos",
+        mimeType: "video/quicktime",
+        sizeBytes: 100,
+        buffer: new Uint8Array(100),
+      }),
+    ).not.toThrow();
+  });
+
+  // Phase 8.5 hostile-review fix: image/svg+xml was previously allowed for
+  // the public system-assets bucket despite having no magic-byte
+  // signature and no content sanitization — an admin-uploaded SVG
+  // containing <script> would execute if a browser navigated to it
+  // directly. Removed from the bucket's allowlist entirely (migration
+  // 0107 removes it at the Storage level too); this pins that it's now
+  // rejected as a disallowed MIME type, not silently let through.
+  it("rejects image/svg+xml for system-assets (no sanitization exists for SVG content)", () => {
     expect(() =>
       validateUpload({
         bucket: "system-assets",
@@ -126,6 +145,6 @@ describe("validateUpload", () => {
         sizeBytes: 100,
         buffer: new TextEncoder().encode("<svg></svg>"),
       }),
-    ).not.toThrow();
+    ).toThrow(FileValidationError);
   });
 });

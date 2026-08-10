@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { clientEnv } from "@/lib/env";
 import type { Database } from "@/lib/supabase/types";
 import { isSessionMfaVerifiedEdge } from "@/lib/auth/session-registry-edge";
+import { secureCookieOptions } from "@/lib/supabase/cookie-options";
 
 /**
  * Refreshes the Supabase session cookie on every request and returns both
@@ -41,6 +42,7 @@ export async function updateSession(request: NextRequest) {
           }
         },
       },
+      cookieOptions: secureCookieOptions,
     },
   );
 

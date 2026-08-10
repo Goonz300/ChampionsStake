@@ -2,6 +2,7 @@
 
 import { getServiceRoleClient } from "../_shared/database/client.ts";
 import { recordAudit } from "../_shared/audit/index.ts";
+import { assertModeratorOnDispute } from "./cases.ts";
 
 /**
  * Phase 3D independent-review finding: unlike decisions.ts/queue.ts/
@@ -16,7 +17,9 @@ export async function addNote(
   disputeId: string,
   authorId: string,
   content: string,
+  isAdmin: boolean,
 ): Promise<{ id: string }> {
+  await assertModeratorOnDispute(disputeId, authorId, isAdmin);
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("dispute_notes")
@@ -39,7 +42,12 @@ export async function addNote(
   return { id: data.id };
 }
 
-export async function listNotes(disputeId: string) {
+export async function listNotes(
+  disputeId: string,
+  moderatorId: string,
+  isAdmin: boolean,
+) {
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from("dispute_notes")

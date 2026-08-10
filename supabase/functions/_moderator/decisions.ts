@@ -17,6 +17,7 @@ import {
   moderatorVoidMatch,
 } from "../_challenge/escrow-transition.ts";
 import { getDisputeOrThrow, updateDispute } from "./repository.ts";
+import { assertModeratorOnDispute } from "./cases.ts";
 
 const MIN_RATIONALE_LENGTH = 10;
 
@@ -62,8 +63,10 @@ export async function approveWinner(
   disputeId: string,
   moderatorId: string,
   rationale: string,
+  isAdmin: boolean,
 ): Promise<void> {
   assertRationale(rationale);
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   const dispute = await getDisputeOrThrow(disputeId);
   const supabase = getServiceRoleClient();
   const { data: challenge } = await supabase
@@ -92,8 +95,10 @@ export async function approveOpponent(
   disputeId: string,
   moderatorId: string,
   rationale: string,
+  isAdmin: boolean,
 ): Promise<void> {
   assertRationale(rationale);
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   const dispute = await getDisputeOrThrow(disputeId);
   const supabase = getServiceRoleClient();
   const { data: challenge } = await supabase
@@ -121,16 +126,19 @@ export async function dismissInvalidDispute(
   disputeId: string,
   moderatorId: string,
   rationale: string,
+  isAdmin: boolean,
 ): Promise<void> {
-  await approveWinner(disputeId, moderatorId, rationale);
+  await approveWinner(disputeId, moderatorId, rationale, isAdmin);
 }
 
 export async function voidMatch(
   disputeId: string,
   moderatorId: string,
   rationale: string,
+  isAdmin: boolean,
 ): Promise<void> {
   assertRationale(rationale);
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   const dispute = await getDisputeOrThrow(disputeId);
   await moderatorVoidMatch(dispute.challengeId, moderatorId);
   await finalizeDisputeDecision(disputeId, "voided", rationale, moderatorId);
@@ -139,8 +147,10 @@ export async function voidMatch(
 export async function requestMoreEvidence(
   disputeId: string,
   moderatorId: string,
+  isAdmin: boolean,
   extensionHours = 24,
 ): Promise<void> {
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   const dispute = await getDisputeOrThrow(disputeId);
   const newDeadline = new Date(
     Math.max(Date.now(), new Date(dispute.evidenceDeadlineAt).getTime()) +
@@ -165,7 +175,9 @@ export async function returnToPlayers(
   disputeId: string,
   moderatorId: string,
   note: string,
+  isAdmin: boolean,
 ): Promise<void> {
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   await recordAudit({
     actorId: moderatorId,
     actorType: "moderator",
@@ -187,7 +199,9 @@ export async function returnToPlayers(
 export async function reopenCase(
   disputeId: string,
   moderatorId: string,
+  isAdmin: boolean,
 ): Promise<void> {
+  await assertModeratorOnDispute(disputeId, moderatorId, isAdmin);
   const dispute = await getDisputeOrThrow(disputeId);
   const supabase = getServiceRoleClient();
   const { data: challenge } = await supabase.from("challenges").select("status")

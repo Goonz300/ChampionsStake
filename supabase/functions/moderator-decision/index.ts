@@ -57,32 +57,48 @@ async function handler(ctx: EdgeContext): Promise<Response> {
   requireModerator(ctx.profile!);
   const body = validateBody(bodySchema, await parseJsonBody(ctx.request));
   const moderatorId = ctx.user!.id;
+  // Hostile review finding (High, Phase 8.5): none of these actions
+  // previously checked dispute assignment at all, so any moderator could
+  // act on any dispute -- see the header comment on
+  // _moderator/cases.ts's assertModeratorOnDispute for the full exploit.
+  const isAdmin = ctx.profile!.role === "administrator";
 
   switch (body.action) {
     case "approve_winner":
-      await approveWinner(body.disputeId, moderatorId, body.rationale);
+      await approveWinner(body.disputeId, moderatorId, body.rationale, isAdmin);
       break;
     case "approve_opponent":
-      await approveOpponent(body.disputeId, moderatorId, body.rationale);
+      await approveOpponent(
+        body.disputeId,
+        moderatorId,
+        body.rationale,
+        isAdmin,
+      );
       break;
     case "dismiss_invalid":
-      await dismissInvalidDispute(body.disputeId, moderatorId, body.rationale);
+      await dismissInvalidDispute(
+        body.disputeId,
+        moderatorId,
+        body.rationale,
+        isAdmin,
+      );
       break;
     case "void_match":
-      await voidMatch(body.disputeId, moderatorId, body.rationale);
+      await voidMatch(body.disputeId, moderatorId, body.rationale, isAdmin);
       break;
     case "request_more_evidence":
       await requestMoreEvidence(
         body.disputeId,
         moderatorId,
+        isAdmin,
         body.extensionHours,
       );
       break;
     case "return_to_players":
-      await returnToPlayers(body.disputeId, moderatorId, body.note);
+      await returnToPlayers(body.disputeId, moderatorId, body.note, isAdmin);
       break;
     case "reopen":
-      await reopenCase(body.disputeId, moderatorId);
+      await reopenCase(body.disputeId, moderatorId, isAdmin);
       break;
     default:
       throw new ValidationError("Unsupported action.");
