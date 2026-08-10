@@ -28,3 +28,9 @@ yarn-error.log*
 
 # Supabase local
 supabase/.temp/
+
+# Load testing: real seed files contain live session JWTs / test
+# credentials for a staging project -- never committed. Only the
+# .example.json template (no real values) is tracked.
+load-tests/seed/*.json
+!load-tests/seed/*.example.json

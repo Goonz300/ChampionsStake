@@ -1,0 +1,15 @@
+[
+  {
+    "email": "loadtest001@example.invalid",
+    "password": "REPLACE_WITH_REAL_TEST_PASSWORD",
+    "jwt": "REPLACE_WITH_A_FRESH_SESSION_TOKEN_FOR_THIS_ACCOUNT",
+    "role": "player",
+    "payoutMethodId": "REPLACE_WITH_A_REAL_STAGING_PAYOUT_METHOD_ID"
+  },
+  {
+    "email": "loadtest-organizer001@example.invalid",
+    "password": "REPLACE_WITH_REAL_TEST_PASSWORD",
+    "jwt": "REPLACE_WITH_A_FRESH_SESSION_TOKEN_FOR_THIS_ACCOUNT",
+    "role": "organizer"
+  }
+]
