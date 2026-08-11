@@ -4,7 +4,7 @@
   "description": "ChampionsStake — competitive gaming marketplace with escrow-protected challenges.",
   "private": true,
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "typescript": "5.7.2",
-    "@types/node": "22.10.2",
+    "@types/node": "24.13.3",
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
     "eslint": "9.17.0",
