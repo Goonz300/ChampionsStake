@@ -4,7 +4,7 @@
 - A Supabase project (Postgres, Auth, Storage, Realtime, Edge Functions, pg_cron, pg_net, Vault all enabled)
 - A Vercel account (or any Next.js 15-compatible host)
 - Paystack account with test-mode keys (live keys before accepting real money)
-- Node.js >= 20.11.0
+- Node.js >= 22.12.0
 
 ## 1. Database
 ```

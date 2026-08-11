@@ -9,11 +9,13 @@ The full manual configuration surface, documented exhaustively because no infras
 
 ## CI/CD
 
-`.github/workflows/ci.yml` — two jobs, `web` (Node 20.11.0, npm workspace) and `edge-functions` (Deno v2.x). As of this phase, both jobs run their full validation pipeline including tests (`npm run test`/`deno test`) — previously only format/lint/typecheck/build ran, so a regression in tested logic (including the wallet-ledger tests) never blocked a merge before this phase's fix. Deno dependency caching added this phase, keyed on `deno.lock`.
+`.github/workflows/ci.yml` — two jobs, `web` (Node 24.18.1, npm workspace) and `edge-functions` (Deno v2.x). As of this phase, both jobs run their full validation pipeline including tests (`npm run test`/`deno test`) — previously only format/lint/typecheck/build ran, so a regression in tested logic (including the wallet-ledger tests) never blocked a merge before this phase's fix. Deno dependency caching added this phase, keyed on `deno.lock`.
+
+Update, superseding the above: a subsequent CI-recovery phase bumped `web`'s pinned Node version to `24.18.1` (see `docs/CI_RECOVERY_ROOT_CAUSE.md`) after a `vitest` CVE fix pulled in a pure-ESM-only `vite@7.x`, which Node 20.11.0 cannot `require()`. That phase also added a `timeout-minutes` ceiling and a `concurrency` cancellation group to both jobs.
 
 ## Runtime versions
 
-- Node: `>=20.11.0`, pinned via `.nvmrc` (added this phase — nothing enforced this locally before).
+- Node: `>=22.12.0`, pinned via `.nvmrc` (`24.18.1`) — raised from the original `>=20.11.0` pin by the CI-recovery phase; see `docs/CI_RECOVERY_ROOT_CAUSE.md`.
 - Deno: `v2.x`.
 - TypeScript: `5.7.2`, exact-pinned.
 
