@@ -6,10 +6,24 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  # Phase 9 (CI/CD review) fix: without this, every additional push to the
+  # same branch/PR queues a brand-new run instead of superseding the
+  # in-flight one for an already-stale commit -- wasting CI minutes and
+  # delaying feedback on the latest push behind runs nobody needs anymore.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   web:
     name: apps/web (Next.js)
     runs-on: ubuntu-latest
+    # Phase 9 fix: jobs default to a 360-minute timeout if unset, so a hung
+    # step (e.g. a test stuck on an unresolved promise) would silently burn
+    # CI minutes for up to 6 hours before GitHub kills it. Bounded to a
+    # ceiling well above any observed run (full install/format/lint/
+    # typecheck/test/build completes in a few minutes).
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,6 +86,9 @@ jobs:
   edge-functions:
     name: supabase/functions (Deno)
     runs-on: ubuntu-latest
+    # Phase 9 fix: same rationale as the web job above -- bound the default
+    # 360-minute timeout to a ceiling well above any observed run.
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -58,6 +58,15 @@ Bumped the pinned Node version everywhere it's declared, to a version with stabl
 
 This is the officially sanctioned mechanism Node provides for a CommonJS-by-default project to consume a pure-ESM dependency during this transitional period across the npm ecosystem — not a workaround, not a legacy loader, not forcing CommonJS, and not pinning to an obsolete version. Node 20.x LTS is also EOL as of this phase, making the move off it correct on its own terms independent of this specific bug.
 
+## Phase 9 — CI/CD review (beyond the Node-version fix)
+
+With the actual regression fixed, `.github/workflows/ci.yml` was re-read in full and checked against: Node version, npm cache, Deno cache, workspace commands, matrix, artifacts, build caching, test execution, deployment readiness. Two genuine, low-risk gaps were found and fixed; everything else (Deno cache keying, workspace-aware `npm ci`, placeholder build env vars, per-file Deno type-checking) was already correct from the prior phase and left as-is:
+
+- **No `timeout-minutes` on either job.** GitHub Actions defaults an unset job timeout to 360 minutes — a hung step (e.g. a test stuck on an unresolved promise) would silently consume CI minutes for up to 6 hours before being killed. Added `timeout-minutes: 15` (web) / `10` (edge-functions), both well above any observed run.
+- **No `concurrency` group.** Without one, each additional push to the same branch/PR queues a new run instead of superseding the in-flight run for an already-superseded commit, wasting CI minutes and delaying feedback on the latest push. Added a top-level `concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }`.
+
+Not changed, and why: the Deno version pin (`deno-version: v2.x`) is a floating-minor range, not a stale exact pin like the Node regression was — it always resolves to the latest 2.x, which is the safer direction for a fast-moving but still-2.x-major toolchain, so tightening it further would add maintenance burden without fixing a real problem. No matrix build, artifact upload, or additional build-caching step was added since none is currently justified by an actual gap (single Node version target, no multi-OS deployment target, `.next` build cache would only matter for build *speed*, which isn't a correctness or reliability issue).
+
 ## Verification performed
 
 - Full clean-room reproduction of what CI actually does: `rm -rf node_modules apps/web/node_modules && npm ci` (not `npm install` — matching CI's exact, lockfile-strict install command), followed by the complete validation pipeline. All green: format check, lint, typecheck, 199/199 tests, production build.
