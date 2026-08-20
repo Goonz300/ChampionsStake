@@ -6,9 +6,14 @@ node_modules/
 out/
 
 # Environment
-.env
-.env.local
-.env.*.local
+# Broad "ignore everything env-shaped, allowlist the safe template" instead
+# of naming each file individually: the previous three lines (.env,
+# .env.local, .env.*.local) never matched .env.production, .env.development,
+# or .env.staging (no ".local" suffix) -- Vercel deployment prep surfaced
+# this gap. Found during a deployment-readiness audit, before any such file
+# existed on disk; fixed proactively rather than after an actual leak.
+.env*
+!.env.example
 
 # Build artifacts
 *.tsbuildinfo

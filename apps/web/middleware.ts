@@ -16,7 +16,44 @@ const PUBLIC_PREFIXES = [
   "/access-denied",
   "/maintenance",
   "/auth/callback",
+  "/terms", // Landing page footer link -- legal pages must stay reachable without an account.
+  "/privacy",
+  "/cookies",
   "/api/health", // PROD-001: external uptime monitors cannot authenticate — must never be gated
+  // PHASE 17 STEP 4 FINDING (P0, confirmed by a real, unauthenticated HTTP
+  // POST against a running instance -- every prior phase's auth testing
+  // went straight through Supabase's own /auth/v1/token REST API and never
+  // once exercised these Next.js routes over HTTP, so this was invisible
+  // until now): none of these were in PUBLIC_PREFIXES, so a genuinely
+  // logged-out visitor's request to any of them never reached the route
+  // handler at all -- middleware's own "!user -> redirect to /login" rule
+  // (below) fired first, on the LOGIN route itself. As configured, no new
+  // user could register and no existing user could log in through the
+  // actual application. reset-password and logout are deliberately NOT
+  // listed here -- both require a real (recovery or normal) session to be
+  // meaningful, and middleware's existing `!user` check is the correct
+  // gate for a request with no session context at all.
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/forgot-password",
+  "/api/auth/resend-verification",
+  "/api/auth/session", // Designed to answer "am I logged in?" with a clean 401 JSON for a logged-out caller -- must reach its own handler, not be redirected.
+  // Phase 12 (Marketplace pipeline): browsing is public, matching the
+  // existing challenge-browse Edge Function's own auth:"optional" posture
+  // — a signed-out visitor sees open listings, same as today's public
+  // challenge browse. /invite/[code] must be reachable pre-auth by
+  // definition (a shared link's whole point is a visitor previews it,
+  // THEN is asked to log in via /login?redirect_to=/invite/{code} —
+  // see docs/MARKETPLACE_ACQUISITION_ARCHITECTURE.md). Accepting a match
+  // still requires auth — that's enforced by marketplace-reserve's own
+  // auth:"required", not by this page being gated.
+  "/marketplace",
+  "/invite",
+  // Phase 13 (Player Experience): public player profiles mirror
+  // player-profile-get's own auth:"optional" posture — a signed-out
+  // visitor can view a profile (subject to that profile's own privacy
+  // preferences), same reasoning as /marketplace above.
+  "/players",
 ];
 
 export function isPublicPath(pathname: string): boolean {

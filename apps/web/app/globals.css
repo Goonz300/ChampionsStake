@@ -5,3 +5,275 @@
 * {
   box-sizing: border-box;
 }
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ==========================================================================
+   Landing page visual system
+   Scoped entirely to `.landing-*` classes so nothing here can leak into or
+   be affected by the authenticated app's own (currently minimal) styling.
+   ========================================================================== */
+
+/* Animated background: a soft moving grid plus two large, slow-drifting
+   radial glows (green + amber, matching the app's own neon-green/
+   bright-yellow tokens). Pure CSS, no canvas/WebGL/particle library. */
+.landing-grid-bg {
+  background-image: linear-gradient(to right, rgba(51, 51, 51, 0.55) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(51, 51, 51, 0.55) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+}
+
+.landing-glow-a {
+  background: radial-gradient(circle, rgba(57, 255, 20, 0.16) 0%, transparent 70%);
+}
+
+.landing-glow-b {
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.12) 0%, transparent 70%);
+}
+
+/* Deterministic (non-random, SSR-safe) particle dots. Each particle's
+   position/timing comes from inline CSS custom properties set by the
+   component, not Math.random(), so server and client markup always match. */
+.landing-particle {
+  position: absolute;
+  left: var(--px, 50%);
+  top: var(--py, 50%);
+  width: var(--psize, 3px);
+  height: var(--psize, 3px);
+  border-radius: 9999px;
+  background: var(--pcolor, #39ff14);
+  box-shadow: 0 0 6px 1px var(--pcolor, #39ff14);
+  opacity: 0;
+  animation:
+    landing-particle-drift var(--pduration, 12s) ease-in-out infinite,
+    landing-particle-fade var(--pduration, 12s) ease-in-out infinite;
+  animation-delay: var(--pdelay, 0s);
+}
+
+@keyframes landing-particle-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(var(--pdx, 12px), var(--pdy, -18px));
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes landing-particle-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: var(--popacity, 0.55);
+  }
+}
+
+/* Glassmorphism surface: dark, translucent, blurred, with a faint inner
+   highlight along the top edge to sell the "frosted glass" read. */
+.landing-glass {
+  background: linear-gradient(180deg, rgba(26, 26, 26, 0.72) 0%, rgba(10, 10, 10, 0.72) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    0 8px 32px -8px rgba(0, 0, 0, 0.6);
+}
+
+/* Shimmering sheen sweep, used sparingly on primary CTAs and the
+   headline for a "premium AAA polish" accent. */
+.landing-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #39ff14 0%,
+    #d9ffb8 22%,
+    #39ff14 44%,
+    #ffd700 60%,
+    #39ff14 82%,
+    #39ff14 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: landing-text-shimmer 5s linear infinite;
+}
+
+@keyframes landing-text-shimmer {
+  from {
+    background-position: 0% center;
+  }
+  to {
+    background-position: -220% center;
+  }
+}
+
+/* Cursor-reactive 3D tilt. The rotation angles are set as inline custom
+   properties by TiltCard.tsx on pointer move; this class just wires them
+   into a perspective transform, and resets cleanly on pointer leave. */
+.landing-tilt {
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg))
+    translateZ(0);
+  transition: transform 0.15s ease-out;
+  will-change: transform;
+}
+
+/* Custom focus ring: high-contrast neon green, visible on the pure-black
+   background regardless of what element it's applied to (link, button,
+   accordion trigger, etc.) -- keyboard navigation stays legible throughout. */
+.landing-focus-ring:focus-visible {
+  outline: 2px solid #39ff14;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Thin neon scrollbar for horizontally-scrolling strips (e.g. the mobile
+   Featured Challenges rail), progressively enhanced -- unsupported browsers
+   just get their default scrollbar, nothing breaks. */
+.landing-scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #39ff14 #1a1a1a;
+}
+.landing-scroll-thin::-webkit-scrollbar {
+  height: 6px;
+}
+.landing-scroll-thin::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+.landing-scroll-thin::-webkit-scrollbar-thumb {
+  background-color: #39ff14;
+  border-radius: 9999px;
+}
+
+/* Keeps in-page anchor links (Navbar -> section) from landing a heading
+   directly under the fixed/sticky navbar. */
+.landing-section {
+  scroll-margin-top: 88px;
+}
+
+/* Scroll-reveal base state: ScrollReveal.tsx toggles `is-visible` once an
+   element crosses the viewport threshold. Kept as plain CSS classes (not
+   inline styles) so `prefers-reduced-motion` below can cleanly override it. */
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.landing-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .landing-particle {
+    display: none;
+  }
+
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Public marketing site visual system
+   Scoped entirely to `.mkt-*` classes -- restyled to the ORIGINAL
+   ChampionsStake brand palette (vv-* tokens in tailwind.config.ts): pure
+   black, #1A1A1A surfaces, #333333 dividers, neon green used sparingly as
+   the single brand accent. Raw hex below (not Tailwind classes) because
+   these are plain CSS rules, not utility classes -- each value corresponds
+   1:1 to a vv-* token; see the comment on each rule. Used only by
+   components/marketing/.
+   ========================================================================== */
+
+/* Faint technical grid, much lower contrast than .landing-grid-bg -- reads
+   as "engineered surface", not a decorative background pattern. */
+.mkt-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Single restrained radial vignette -- the only "glow" this system permits,
+   and it's a very low-opacity neon-green tint (vv-neon-green #39FF14), not
+   a bright colored blob. This is the one place the brand accent bleeds into
+   a background rather than sitting on a discrete element -- kept faint on
+   purpose per "subtle glow accents, critical brand moments". */
+.mkt-vignette {
+  background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(57, 255, 20, 0.06), transparent 70%);
+}
+
+/* Thin technical border (vv-divider #333333) that brightens to a neutral
+   light gray on hover/focus -- deliberately NOT green. Card/panel hover
+   feedback stays neutral so neon green reads as meaningful (CTAs, active
+   states) rather than decorating every hoverable surface. */
+.mkt-border {
+  border: 1px solid #333333;
+  transition: border-color 0.2s ease;
+}
+.mkt-border:hover {
+  border-color: #4d4d4d;
+}
+
+/* Focus rings ARE a "key interaction state" -- vv-neon-green (#39FF14),
+   matching the original app's own focus-ring color exactly
+   (.landing-focus-ring above uses the same value). */
+.mkt-focus-ring:focus-visible {
+  outline: 2px solid #39ff14;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Scroll-reveal base state, mirrors .landing-reveal but named separately so
+   the two systems never share a toggle class. */
+.mkt-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mkt-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Thin scanning line used once, inside the hero arena visual, to imply a
+   live/monitoring system without any particle effects or blur. Neon green
+   (vv-neon-green), the one deliberate "brand moment" inside the arena
+   visual's own chrome. */
+.mkt-scan-line {
+  background: linear-gradient(180deg, transparent, rgba(57, 255, 20, 0.5), transparent);
+}
+
+.mkt-section {
+  scroll-margin-top: 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

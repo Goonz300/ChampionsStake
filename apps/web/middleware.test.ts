@@ -30,6 +30,9 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/access-denied")).toBe(true);
     expect(isPublicPath("/maintenance")).toBe(true);
     expect(isPublicPath("/auth/callback")).toBe(true);
+    expect(isPublicPath("/terms")).toBe(true);
+    expect(isPublicPath("/privacy")).toBe(true);
+    expect(isPublicPath("/cookies")).toBe(true);
   });
 
   it("treats app routes as protected (not public)", () => {
